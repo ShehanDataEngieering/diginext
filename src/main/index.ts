@@ -1,6 +1,14 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { config } from 'dotenv'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { IPC_CHANNELS } from '../shared/ipc'
+import { verifySession } from './auth/verifySession'
+
+// Loads CLERK_SECRET_KEY (and any other main-process secrets) from .env before
+// anything that depends on them — must run before verifySession is imported
+// for real use, so this sits at the very top of the entry point.
+config()
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -40,6 +48,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  ipcMain.handle(IPC_CHANNELS.authVerifySession, (_event, token: string) => verifySession(token))
 
   createWindow()
 
