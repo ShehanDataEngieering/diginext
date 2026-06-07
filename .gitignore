@@ -16,3 +16,5 @@ build/
 backups/
 .env
 .env.*
+# ...except the template, which documents what variables to set (no secrets in it)
+!.env.example

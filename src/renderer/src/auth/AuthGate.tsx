@@ -1,75 +1,70 @@
-import { useEffect, useRef, useState } from 'react'
-import { clerk, ensureClerkLoaded } from './clerkClient'
+import { useEffect, useState } from 'react'
+import { ClerkProvider, SignedIn, SignedOut, SignIn, useAuth } from '@clerk/clerk-react'
 
-type Status = 'loading' | 'signed-out' | 'verifying' | 'signed-in' | 'rejected'
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+
+if (!publishableKey) {
+  throw new Error(
+    'VITE_CLERK_PUBLISHABLE_KEY is not set. Copy .env.example to .env and fill in your Clerk keys.'
+  )
+}
 
 /**
- * Gates the whole app behind Clerk sign-in. A signed-in Clerk session in the
- * renderer isn't enough on its own — the session token is re-checked by the
- * main process (see src/main/auth/verifySession.ts) before any DB/IPC access
- * is unlocked, so a tampered renderer can't bypass the gate.
+ * Gates the whole app behind Clerk sign-in. <ClerkProvider> renders its
+ * Google-only <SignIn> UI when signed out; once Clerk reports a session,
+ * MainProcessGate re-checks that session's JWT with the main process (see
+ * src/main/auth/verifySession.ts) before unlocking the app — a tampered
+ * renderer can fake "signed in" locally, but it can't forge a token that
+ * passes independent verification there.
  */
 export function AuthGate({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [status, setStatus] = useState<Status>('loading')
-  const signInRef = useRef<HTMLDivElement>(null)
+  return (
+    <ClerkProvider publishableKey={publishableKey}>
+      <SignedOut>
+        <CenteredMessage>
+          <h2>Sign in to Inventory Manager</h2>
+          <SignIn />
+        </CenteredMessage>
+      </SignedOut>
+      <SignedIn>
+        <MainProcessGate>{children}</MainProcessGate>
+      </SignedIn>
+    </ClerkProvider>
+  )
+}
+
+type VerifyState = 'pending' | 'verified' | 'rejected'
+
+function MainProcessGate({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { getToken, signOut } = useAuth()
+  const [state, setState] = useState<VerifyState>('pending')
 
   useEffect(() => {
     let cancelled = false
 
-    async function verifyWithMain(): Promise<void> {
-      const token = await clerk.session?.getToken()
-      if (!token) {
-        if (!cancelled) setStatus('signed-out')
-        return
-      }
-      if (!cancelled) setStatus('verifying')
-      const verified = await window.api.auth.verifySession(token)
-      if (cancelled) return
-      setStatus(verified ? 'signed-in' : 'rejected')
+    async function verify(): Promise<void> {
+      setState('pending')
+      const token = await getToken()
+      const verified = token ? await window.api.auth.verifySession(token) : false
+      if (!cancelled) setState(verified ? 'verified' : 'rejected')
     }
 
-    ensureClerkLoaded().then(() => {
-      if (cancelled) return
-      verifyWithMain()
-      clerk.addListener(() => verifyWithMain())
-    })
-
+    verify()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [getToken])
 
-  useEffect(() => {
-    if (status === 'signed-out' && signInRef.current) {
-      clerk.mountSignIn(signInRef.current, {
-        // Only Google is enabled as a provider in the Clerk dashboard, so this
-        // renders a single "Continue with Google" button rather than a full form.
-        appearance: { elements: { rootBox: { width: '100%' } } }
-      })
-      return () => clerk.unmountSignIn(signInRef.current!)
-    }
-    return undefined
-  }, [status])
-
-  if (status === 'loading' || status === 'verifying') {
+  if (state === 'pending') {
     return <CenteredMessage>Checking your sign-in status…</CenteredMessage>
   }
 
-  if (status === 'signed-out') {
-    return (
-      <CenteredMessage>
-        <h2>Sign in to Inventory Manager</h2>
-        <div ref={signInRef} />
-      </CenteredMessage>
-    )
-  }
-
-  if (status === 'rejected') {
+  if (state === 'rejected') {
     return (
       <CenteredMessage>
         <h2>Access denied</h2>
-        <p>Your account isn't authorized to use this app. Contact your administrator.</p>
-        <button onClick={() => clerk.signOut()}>Sign out</button>
+        <p>Your account isn&apos;t authorized to use this app. Contact your administrator.</p>
+        <button onClick={() => signOut()}>Sign out</button>
       </CenteredMessage>
     )
   }
