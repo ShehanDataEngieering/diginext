@@ -1,11 +1,25 @@
 // Registers IPC handlers for the CRUD data layer (projects, items, item
 // units, dashboard rollup). Kept separate from main/index.ts so that file
 // stays focused on app lifecycle/window management.
-import { ipcMain } from 'electron'
+import { dialog, ipcMain, BrowserWindow } from 'electron'
+import { writeFile } from 'xlsx'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { IPC_CHANNELS } from '../../shared/ipc'
-import type { ItemInput, ItemUnitFilter, ItemUnitInput, ProjectInput, ProjectStatus } from '../../shared/ipc'
-import { createProject, listProjects, setProjectStatus, updateProject } from '../db/repositories/projects'
+import type {
+  ExportProjectResult,
+  ItemInput,
+  ItemUnitFilter,
+  ItemUnitInput,
+  ProjectInput,
+  ProjectStatus
+} from '../../shared/ipc'
+import {
+  createProject,
+  getProjectById,
+  listProjects,
+  setProjectStatus,
+  updateProject
+} from '../db/repositories/projects'
 import { createItem, deleteItem, listItems, updateItem } from '../db/repositories/items'
 import {
   createItemUnit,
@@ -14,6 +28,7 @@ import {
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
+import { buildProjectInventoryWorkbook, suggestedExportFileName } from '../excel/exportProjectSheet'
 
 // SQLite's raw foreign-key violation message ("FOREIGN KEY constraint failed")
 // means nothing to a user. Translate the one case we expect to actually
@@ -66,4 +81,36 @@ export function registerDataHandlers(db: Database.Database): void {
 
   // --- Dashboard --------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.dashboardRollup, () => getDashboardRollup(db))
+
+  // --- Excel export -----------------------------------------------------------
+  // "Export inventory sheet for [Project]" (plan's Excel Export section). The
+  // save-location picker has to run in the main process (it's a native OS
+  // dialog), so the whole build-then-write sequence lives here rather than
+  // being split across an IPC round trip per step.
+  ipcMain.handle(IPC_CHANNELS.excelExportProject, async (event, projectId: number): Promise<ExportProjectResult> => {
+    const project = getProjectById(db, projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+
+    const items = listItems(db)
+    const units = listItemUnits(db, { projectId })
+
+    const workbook = buildProjectInventoryWorkbook(project, items, units)
+
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const dialogOptions = {
+      title: `Export inventory — ${project.name}`,
+      defaultPath: suggestedExportFileName(project),
+      filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
+    }
+    const result = ownerWindow
+      ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions)
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true }
+    }
+
+    writeFile(workbook, result.filePath)
+    return { canceled: false, filePath: result.filePath }
+  })
 }

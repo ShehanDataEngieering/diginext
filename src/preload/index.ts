@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import {
   BackupInfo,
   DashboardRollup,
+  ExportProjectResult,
   IPC_CHANNELS,
   Item,
   ItemInput,
@@ -64,6 +65,13 @@ const api = {
   },
   dashboard: {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
+  },
+  excel: {
+    // Builds the per-project workbook in the main process and opens a native
+    // "Save As" dialog there (it has to run main-side). Resolves with
+    // `canceled: true` if the user dismisses the dialog — not an error.
+    exportProject: (projectId: number): Promise<ExportProjectResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId)
   }
 }
 

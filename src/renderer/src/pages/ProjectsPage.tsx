@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Archive, Pencil, Plus, RotateCcw } from 'lucide-react'
+import { Archive, Download, Pencil, Plus, RotateCcw } from 'lucide-react'
 import type { Project, ProjectInput } from '@shared/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,8 @@ export function ProjectsPage(): React.JSX.Element {
   const [dialogProject, setDialogProject] = useState<Project | 'new' | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [exportingId, setExportingId] = useState<number | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   async function reload(): Promise<void> {
     try {
@@ -103,6 +105,27 @@ export function ProjectsPage(): React.JSX.Element {
     }
   }
 
+  // "Export inventory sheet for [Project]" (plan's Excel Export section).
+  // The actual file-picking and writing happens in the main process — this
+  // just triggers it and reports back. A canceled save dialog isn't an
+  // error, so it's distinguished from real failures rather than surfaced
+  // through the same `error` banner as everything else on this page.
+  async function handleExport(project: Project): Promise<void> {
+    setExportingId(project.id)
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await window.api.excel.exportProject(project.id)
+      if (!result.canceled && result.filePath) {
+        setNotice(`Exported "${project.name}" to ${result.filePath}`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setExportingId(null)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -119,6 +142,7 @@ export function ProjectsPage(): React.JSX.Element {
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
+      {notice && <p className="text-sm text-emerald-600">{notice}</p>}
 
       <div className="rounded-xl border">
         <Table>
@@ -146,6 +170,15 @@ export function ProjectsPage(): React.JSX.Element {
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title={`Export inventory sheet for ${project.name}`}
+                      disabled={exportingId === project.id}
+                      onClick={() => handleExport(project)}
+                    >
+                      <Download />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(project)}>
                       <Pencil />
                     </Button>

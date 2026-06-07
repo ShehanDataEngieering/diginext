@@ -30,6 +30,14 @@ export function listProjects(db: Database.Database): Project[] {
   return rows.map(toProject)
 }
 
+// Single-record lookup — used by the Excel export handler (and, later, the
+// import/reconciliation matcher) where the renderer only has a project ID,
+// not the whole list already in hand.
+export function getProjectById(db: Database.Database, id: number): Project | null {
+  const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined
+  return row ? toProject(row) : null
+}
+
 export function createProject(db: Database.Database, input: ProjectInput): Project {
   const result = db
     .prepare(
