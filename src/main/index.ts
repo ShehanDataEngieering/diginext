@@ -6,6 +6,7 @@ import { IPC_CHANNELS } from '../shared/ipc'
 import { verifySession } from './auth/verifySession'
 import { backupDatabase, listBackups, restoreDatabase } from './db/backup'
 import { closeDb, dbPath, getDb } from './db/connection'
+import { maybeSeedFromMasterInventory } from './db/maybeSeed'
 
 // Loads CLERK_SECRET_KEY (and any other main-process secrets) from .env before
 // anything that depends on them — must run before verifySession is imported
@@ -58,7 +59,12 @@ app.whenReady().then(() => {
   // is already safely tucked away in backups/. Then open (creating + migrating
   // on first run) so the rest of the app has a ready connection via getDb().
   backupDatabase(dbPath(), 'auto')
-  getDb()
+  const db = getDb()
+
+  // One-time real-data import (Milestone 4) — only fires while `items` is
+  // empty and SEED_XLSX_PATH points at a workbook; see maybeSeed.ts for why
+  // this is intentionally not a UI feature.
+  maybeSeedFromMasterInventory(db)
 
   ipcMain.handle(IPC_CHANNELS.dbBackupNow, () => backupDatabase(dbPath(), 'manual'))
   ipcMain.handle(IPC_CHANNELS.dbListBackups, () => listBackups())
