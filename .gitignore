@@ -1,0 +1,17 @@
+node_modules/
+*.tsbuildinfo
+out/
+dist/
+dist-electron/
+release/
+build/
+*.log
+.DS_Store
+
+# local data & secrets - never commit
+*.sqlite
+*.sqlite3
+*.db
+backups/
+.env
+.env.*
