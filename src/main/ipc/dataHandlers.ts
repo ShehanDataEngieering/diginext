@@ -1,7 +1,7 @@
 // Registers IPC handlers for the CRUD data layer (projects, items, item
 // units, dashboard rollup). Kept separate from main/index.ts so that file
 // stays focused on app lifecycle/window management.
-import { dialog, ipcMain, BrowserWindow } from 'electron'
+import { dialog, ipcMain } from 'electron'
 import { writeFile } from 'xlsx'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { IPC_CHANNELS } from '../../shared/ipc'
@@ -87,7 +87,7 @@ export function registerDataHandlers(db: Database.Database): void {
   // save-location picker has to run in the main process (it's a native OS
   // dialog), so the whole build-then-write sequence lives here rather than
   // being split across an IPC round trip per step.
-  ipcMain.handle(IPC_CHANNELS.excelExportProject, async (event, projectId: number): Promise<ExportProjectResult> => {
+  ipcMain.handle(IPC_CHANNELS.excelExportProject, async (_event, projectId: number): Promise<ExportProjectResult> => {
     const project = getProjectById(db, projectId)
     if (!project) throw new Error(`Project ${projectId} not found`)
 
@@ -96,15 +96,18 @@ export function registerDataHandlers(db: Database.Database): void {
 
     const workbook = buildProjectInventoryWorkbook(project, items, units)
 
-    const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
-    const dialogOptions = {
+    // Deliberately *not* passing the owning BrowserWindow here: attaching the
+    // native save dialog as a modal sheet of the parent window is the usual
+    // Electron pattern, but under WSLg's GTK/X11 passthrough that transient-
+    // for attachment can deadlock the dialog's message loop against the
+    // renderer's — the symptom being the whole window freezing solid after
+    // "Save" is clicked. An unattached dialog behaves like a normal top-level
+    // window and avoids that grab/focus interaction entirely.
+    const result = await dialog.showSaveDialog({
       title: `Export inventory — ${project.name}`,
       defaultPath: suggestedExportFileName(project),
       filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
-    }
-    const result = ownerWindow
-      ? await dialog.showSaveDialog(ownerWindow, dialogOptions)
-      : await dialog.showSaveDialog(dialogOptions)
+    })
 
     if (result.canceled || !result.filePath) {
       return { canceled: true }
