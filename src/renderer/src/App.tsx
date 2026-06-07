@@ -66,7 +66,7 @@ function App() {
   return (
     <AuthGate>
       <div
-        className="mx-auto my-6 flex h-[660px] w-[1180px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-xl border border-gray-200 shadow-2xl"
+        className="flex h-screen w-screen flex-col overflow-hidden"
         style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" }}
       >
         <TitleBar onAddItem={handleAddItem} />
@@ -102,7 +102,7 @@ function App() {
           </main>
         </div>
 
-        <div className="flex h-[26px] shrink-0 items-center gap-2.5 rounded-b-xl border-t border-gray-200 bg-[#F5F5F5] px-3.5 text-[11px] text-gray-400">
+        <div className="flex h-[26px] shrink-0 items-center gap-2.5 border-t border-gray-200 bg-[#F5F5F5] px-3.5 text-[11px] text-gray-400">
           {activeTab === 'dashboard' && <span>{shellItems.length} items · Updated just now</span>}
           {activeTab === 'items' && <span>{shellItems.length} items · Updated just now</span>}
           {activeTab === 'projects' && <span>{shellProjects.length} projects · Updated just now</span>}

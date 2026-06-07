@@ -6,36 +6,27 @@ interface TitleBarProps {
 }
 
 /**
- * Custom macOS-style titlebar (traffic-light dots are purely decorative here
- * — Electron's own frame is hidden via autoHideMenuBar/frame settings — this
- * just makes the chrome read as "native Mac app" to match the rest of the design).
+ * Slim action toolbar under the OS's own window chrome. The original design
+ * reference simulated a whole macOS window (traffic-light dots, centered
+ * title) — but this app already runs inside a real native window with its
+ * own controls and title, so reproducing fake ones here would just stack two
+ * titlebars on top of each other. Keeping only the bits that add value:
+ * global quick actions.
  */
 export function TitleBar({ onAddItem }: TitleBarProps): React.JSX.Element {
   return (
-    <div className="relative flex h-[38px] shrink-0 items-center border-b border-gray-200 bg-[#ECECEC] px-3">
-      <div className="flex items-center gap-1.5">
-        <span className="size-3 rounded-full" style={{ backgroundColor: '#FF5F57' }} />
-        <span className="size-3 rounded-full" style={{ backgroundColor: '#FFBD2E' }} />
-        <span className="size-3 rounded-full" style={{ backgroundColor: '#28C840' }} />
-      </div>
-
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[13px] font-medium text-gray-500">
-        Inventory Manager
-      </span>
-
-      <div className="ml-auto flex items-center gap-2">
-        <Button variant="outline" size="sm" className="h-auto rounded-md px-3 py-1 text-[12px]" onClick={onAddItem}>
-          <Plus /> Add item
-        </Button>
-        <Button
-          size="sm"
-          className="h-auto rounded-md px-3 py-1 text-[12px]"
-          disabled
-          title="Excel export lands in a later milestone"
-        >
-          <Upload /> Export
-        </Button>
-      </div>
+    <div className="flex h-[44px] shrink-0 items-center justify-end gap-2 border-b border-gray-200 bg-[#ECECEC] px-3.5">
+      <Button variant="outline" size="sm" className="h-auto rounded-md px-3 py-1 text-[12px]" onClick={onAddItem}>
+        <Plus /> Add item
+      </Button>
+      <Button
+        size="sm"
+        className="h-auto rounded-md px-3 py-1 text-[12px]"
+        disabled
+        title="Excel export lands in a later milestone"
+      >
+        <Upload /> Export
+      </Button>
     </div>
   )
 }
