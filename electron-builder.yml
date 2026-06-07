@@ -6,6 +6,11 @@ directories:
 files:
   - out/**/*
   - package.json
+# better-sqlite3-multiple-ciphers ships a compiled .node binary — those can't
+# run from inside an asar archive, so they must be unpacked to plain disk
+# alongside it at install time.
+asarUnpack:
+  - '**/better-sqlite3-multiple-ciphers/**/*'
 win:
   target:
     - target: nsis
