@@ -1,4 +1,5 @@
 node_modules/
+package-lock.json
 *.tsbuildinfo
 out/
 dist/
@@ -15,3 +16,5 @@ build/
 backups/
 .env
 .env.*
+# ...except the template, which documents what variables to set (no secrets in it)
+!.env.example

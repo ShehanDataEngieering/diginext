@@ -2,11 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- All data and OAuth flows happen in the main process; the renderer never
-         needs to load remote scripts/styles, so we lock the CSP to 'self'. -->
+    <!-- Data and Excel I/O stay in the main process, but Clerk's sign-in UI runs
+         in the renderer and needs to load extra script chunks, fonts, and images
+         from its own hosted domains, call its Frontend API, and run its
+         Cloudflare Turnstile bot-check widget (challenges.cloudflare.com) —
+         without that last one Clerk reports the browser as "unsupported" and
+         refuses to render the sign-in form. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+      content="default-src 'self';
+        script-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com;
+        connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com;
+        style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev;
+        img-src 'self' data: https://img.clerk.com https://*.clerk.com;
+        font-src 'self' data:;
+        frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com;
+        worker-src 'self' blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inventory Manager</title>

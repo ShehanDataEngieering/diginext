@@ -13,12 +13,14 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@clerk/backend": "^3.5.0",
+    "@clerk/clerk-react": "^5.61.8",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "google-auth-library": "^10.7.0",
+    "dotenv": "^17.4.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
