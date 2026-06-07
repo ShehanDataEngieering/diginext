@@ -27,7 +27,14 @@ const KNOWN_CATEGORIES = [
 
 const emptyForm: ItemInput = { category: '', name: '', initialStock: 0 }
 
-export function ItemsPage(): React.JSX.Element {
+export function ItemsPage({
+  openCreateSignal
+}: {
+  // Bumped by the titlebar's "Add item" button (see App.tsx / TitleBar.tsx)
+  // to open the create dialog from outside this page. A counter rather than
+  // a boolean so repeated clicks each re-open it even if already closed once.
+  openCreateSignal?: number
+} = {}): React.JSX.Element {
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialogItem, setDialogItem] = useState<Item | 'new' | null>(null)
@@ -45,6 +52,11 @@ export function ItemsPage(): React.JSX.Element {
   useEffect(() => {
     reload()
   }, [])
+
+  useEffect(() => {
+    if (openCreateSignal !== undefined && openCreateSignal > 0) openCreate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreateSignal])
 
   const categorySuggestions = useMemo(() => {
     const fromData = (items ?? []).map((item) => item.category)

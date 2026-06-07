@@ -67,7 +67,14 @@ function toInput(form: FormState): ItemUnitInput | null {
   }
 }
 
-export function ItemUnitsPage(): React.JSX.Element {
+export function ItemUnitsPage({
+  projectSeed
+}: {
+  // Set by the sidebar's "Projects" shortcuts (see App.tsx) to pre-apply a
+  // project filter when navigating here. The nonce makes repeat clicks on
+  // the same project re-apply the filter even if the user changed it since.
+  projectSeed?: { projectId: number; nonce: number } | null
+} = {}): React.JSX.Element {
   const [units, setUnits] = useState<ItemUnitWithDetails[] | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -102,6 +109,11 @@ export function ItemUnitsPage(): React.JSX.Element {
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemFilter, projectFilter])
+
+  useEffect(() => {
+    if (projectSeed) setProjectFilter(String(projectSeed.projectId))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectSeed?.nonce])
 
   function openCreate(): void {
     const defaultItemId = itemFilter !== ALL ? Number(itemFilter) : undefined
