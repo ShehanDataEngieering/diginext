@@ -4,6 +4,8 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { IPC_CHANNELS } from '../shared/ipc'
 import { verifySession } from './auth/verifySession'
+import { backupDatabase, listBackups, restoreDatabase } from './db/backup'
+import { closeDb, dbPath, getDb } from './db/connection'
 
 // Loads CLERK_SECRET_KEY (and any other main-process secrets) from .env before
 // anything that depends on them — must run before verifySession is imported
@@ -51,6 +53,25 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC_CHANNELS.authVerifySession, (_event, token: string) => verifySession(token))
 
+  // Snapshot whatever DB exists *before* opening it — if migrations or the
+  // app itself are about to do something destructive, last night's good copy
+  // is already safely tucked away in backups/. Then open (creating + migrating
+  // on first run) so the rest of the app has a ready connection via getDb().
+  backupDatabase(dbPath(), 'auto')
+  getDb()
+
+  ipcMain.handle(IPC_CHANNELS.dbBackupNow, () => backupDatabase(dbPath(), 'manual'))
+  ipcMain.handle(IPC_CHANNELS.dbListBackups, () => listBackups())
+  ipcMain.handle(IPC_CHANNELS.dbRestoreBackup, (_event, backupPath: string) => {
+    // Restoring overwrites the live file, which only SQLite/SQLCipher should
+    // hold open — close our connection first, swap the file, then reopen so
+    // the rest of the app keeps working against the restored data without
+    // requiring a full app restart.
+    closeDb()
+    restoreDatabase(backupPath, dbPath())
+    getDb()
+  })
+
   createWindow()
 
   app.on('activate', function () {
@@ -62,4 +83,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// Release the SQLCipher file handle cleanly so WAL files get checkpointed
+// and merged back into the main database file before the process exits.
+app.on('before-quit', () => {
+  closeDb()
 })
