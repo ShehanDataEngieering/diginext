@@ -7,6 +7,7 @@ import { verifySession } from './auth/verifySession'
 import { backupDatabase, listBackups, restoreDatabase } from './db/backup'
 import { closeDb, dbPath, getDb } from './db/connection'
 import { maybeSeedFromMasterInventory } from './db/maybeSeed'
+import { registerDataHandlers } from './ipc/dataHandlers'
 
 // Loads CLERK_SECRET_KEY (and any other main-process secrets) from .env before
 // anything that depends on them — must run before verifySession is imported
@@ -65,6 +66,10 @@ app.whenReady().then(() => {
   // empty and SEED_XLSX_PATH points at a workbook; see maybeSeed.ts for why
   // this is intentionally not a UI feature.
   maybeSeedFromMasterInventory(db)
+
+  // Wires the projects/items/item-units/dashboard repositories up to
+  // ipcMain.handle for the CRUD UI (Milestone 5) — see src/main/ipc/dataHandlers.ts.
+  registerDataHandlers(db)
 
   ipcMain.handle(IPC_CHANNELS.dbBackupNow, () => backupDatabase(dbPath(), 'manual'))
   ipcMain.handle(IPC_CHANNELS.dbListBackups, () => listBackups())

@@ -1,6 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { BackupInfo, IPC_CHANNELS } from '../shared/ipc'
+import {
+  BackupInfo,
+  DashboardRollup,
+  IPC_CHANNELS,
+  Item,
+  ItemInput,
+  ItemUnitFilter,
+  ItemUnitInput,
+  ItemUnitWithDetails,
+  Project,
+  ProjectInput,
+  ProjectStatus
+} from '../shared/ipc'
 
 // Extended by later milestones with typed IPC calls (item/project CRUD, Excel
 // export/import) — keeps the renderer free of direct Node/Electron access.
@@ -22,6 +34,36 @@ const api = {
     // since this discards any changes made since that backup was taken.
     restoreBackup: (backupPath: string): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.dbRestoreBackup, backupPath)
+  },
+  projects: {
+    list: (): Promise<Project[]> => ipcRenderer.invoke(IPC_CHANNELS.projectsList),
+    create: (input: ProjectInput): Promise<Project> =>
+      ipcRenderer.invoke(IPC_CHANNELS.projectsCreate, input),
+    update: (id: number, input: ProjectInput): Promise<Project> =>
+      ipcRenderer.invoke(IPC_CHANNELS.projectsUpdate, id, input),
+    // No delete — see projects repository: archiving (status -> 'completed')
+    // is the only supported lifecycle transition besides editing.
+    setStatus: (id: number, status: ProjectStatus): Promise<Project> =>
+      ipcRenderer.invoke(IPC_CHANNELS.projectsSetStatus, id, status)
+  },
+  items: {
+    list: (): Promise<Item[]> => ipcRenderer.invoke(IPC_CHANNELS.itemsList),
+    create: (input: ItemInput): Promise<Item> => ipcRenderer.invoke(IPC_CHANNELS.itemsCreate, input),
+    update: (id: number, input: ItemInput): Promise<Item> =>
+      ipcRenderer.invoke(IPC_CHANNELS.itemsUpdate, id, input),
+    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.itemsDelete, id)
+  },
+  itemUnits: {
+    list: (filter?: ItemUnitFilter): Promise<ItemUnitWithDetails[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.itemUnitsList, filter),
+    create: (input: ItemUnitInput): Promise<ItemUnitWithDetails> =>
+      ipcRenderer.invoke(IPC_CHANNELS.itemUnitsCreate, input),
+    update: (id: number, input: ItemUnitInput): Promise<ItemUnitWithDetails> =>
+      ipcRenderer.invoke(IPC_CHANNELS.itemUnitsUpdate, id, input),
+    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.itemUnitsDelete, id)
+  },
+  dashboard: {
+    rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
   }
 }
 
