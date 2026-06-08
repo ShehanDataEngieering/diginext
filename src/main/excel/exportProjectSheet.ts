@@ -134,8 +134,13 @@ function buildDataRows(
     '',
     project.name,
     '',
-    'Exported on:',
-    new Date().toISOString().slice(0, 10)
+    // Reference templates label this "Last Updated Date:" and show the
+    // project's own tracked last-updated date (the field site leads already
+    // expect to see and revise) — not "when did the app generate this file",
+    // which would be a different, less useful piece of information to them.
+    // Fall back to today only for projects that have never recorded one.
+    'Last Updated Date:',
+    project.lastUpdatedDate ?? new Date().toISOString().slice(0, 10)
   ])
   rows.push(['Project Location:', '', project.location ?? ''])
   rows.push(['Updated by:', '', project.updatedBy ?? ''])
