@@ -54,6 +54,17 @@ const SELECT_WITH_DETAILS = `
   LEFT JOIN projects p ON p.id = u.assigned_project_id
 `
 
+// Single-record lookup — used by the data handlers to compare a unit's
+// previous `photoEvidenceRef` against an incoming update/delete so the
+// managed photo store can clean up files that are no longer referenced
+// (see photoStore.ts's `deleteManagedPhoto`).
+export function getItemUnitById(db: Database.Database, id: number): ItemUnitWithDetails | null {
+  const row = db.prepare(`${SELECT_WITH_DETAILS} WHERE u.id = ?`).get(id) as
+    | ItemUnitWithDetailsRow
+    | undefined
+  return row ? toItemUnitWithDetails(row) : null
+}
+
 export function listItemUnits(db: Database.Database, filter?: ItemUnitFilter): ItemUnitWithDetails[] {
   const clauses: string[] = []
   const params: (number | null)[] = []

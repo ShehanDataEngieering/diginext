@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
   BackupInfo,
@@ -10,6 +10,7 @@ import {
   ItemUnitFilter,
   ItemUnitInput,
   ItemUnitWithDetails,
+  PhotoImportResult,
   Project,
   ProjectInput,
   ProjectStatus
@@ -73,6 +74,25 @@ const api = {
     // it landed at.
     exportProject: (projectId: number): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId)
+  },
+  photos: {
+    // Resolves a dropped `File` to its absolute filesystem path. Post-Electron
+    // 13, `File.path` was removed for security — `webUtils.getPathForFile` is
+    // the sanctioned replacement, and (like the rest of this object) only
+    // callable from the isolated preload/main-world bridge, not the renderer
+    // directly. This is the *only* file-attachment route in the app — file
+    // pickers go through the same native dialog machinery that froze the
+    // Excel export under WSLg, so uploads are drag-and-drop only.
+    pathForFile: (file: File): string => webUtils.getPathForFile(file),
+    // Copies the dropped file into the app's managed photo store and returns
+    // the reference to save on the unit (`photo_evidence_ref`).
+    import: (sourcePath: string): Promise<PhotoImportResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.photosImport, sourcePath),
+    // Reads a managed photo back as a `data:` URL for inline <img> display —
+    // resolves to null for refs that aren't photos we manage (including the
+    // old free-text values some seeded units carry).
+    read: (reference: string): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.photosRead, reference)
   }
 }
 

@@ -24,7 +24,10 @@ export const IPC_CHANNELS = {
 
   dashboardRollup: 'dashboard:rollup',
 
-  excelExportProject: 'excel:export-project'
+  excelExportProject: 'excel:export-project',
+
+  photosImport: 'photos:import',
+  photosRead: 'photos:read'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
@@ -135,4 +138,12 @@ export interface DashboardRollup {
 // "where did it land", not a cancelable interaction.
 export interface ExportProjectResult {
   filePath: string
+}
+
+// Result of attaching a photo to an item unit — `reference` is what gets
+// stored in `item_units.photo_evidence_ref` and handed back to
+// `photos:read` later to display it. Opaque to the renderer; it shouldn't
+// assume anything about its shape beyond "pass it back to look the photo up".
+export interface PhotoImportResult {
+  reference: string
 }

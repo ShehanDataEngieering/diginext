@@ -12,6 +12,7 @@ import type {
   ItemInput,
   ItemUnitFilter,
   ItemUnitInput,
+  PhotoImportResult,
   ProjectInput,
   ProjectStatus
 } from '../../shared/ipc'
@@ -26,11 +27,13 @@ import { createItem, deleteItem, listItems, updateItem } from '../db/repositorie
 import {
   createItemUnit,
   deleteItemUnit,
+  getItemUnitById,
   listItemUnits,
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
+import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
 
 // Exports land here rather than behind a save-as picker — see the handler
 // below for why (native dialogs deadlock the whole app under this WSLg
@@ -86,13 +89,41 @@ export function registerDataHandlers(db: Database.Database): void {
   ipcMain.handle(IPC_CHANNELS.itemUnitsCreate, (_event, input: ItemUnitInput) =>
     createItemUnit(db, input)
   )
-  ipcMain.handle(IPC_CHANNELS.itemUnitsUpdate, (_event, id: number, input: ItemUnitInput) =>
-    updateItemUnit(db, id, input)
-  )
-  ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, (_event, id: number) => deleteItemUnit(db, id))
+  ipcMain.handle(IPC_CHANNELS.itemUnitsUpdate, (_event, id: number, input: ItemUnitInput) => {
+    // Look up the outgoing photo *before* overwriting it — if this edit
+    // replaced or cleared it, the old managed file is now orphaned and
+    // should be cleaned up (see photoStore.ts's `deleteManagedPhoto`; it's a
+    // no-op for refs that aren't ours, e.g. old free-text values).
+    const previous = getItemUnitById(db, id)
+    const updated = updateItemUnit(db, id, input)
+    if (previous && previous.photoEvidenceRef !== updated.photoEvidenceRef) {
+      deleteManagedPhoto(previous.photoEvidenceRef)
+    }
+    return updated
+  })
+  ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, (_event, id: number) => {
+    const existing = getItemUnitById(db, id)
+    deleteItemUnit(db, id)
+    if (existing) deleteManagedPhoto(existing.photoEvidenceRef)
+  })
 
   // --- Dashboard --------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.dashboardRollup, () => getDashboardRollup(db))
+
+  // --- Photos ------------------------------------------------------------------
+  // "Upload photos and see those photos of items". File pickers go through
+  // the same native (GTK) dialog machinery that deadlocked the Excel export
+  // under WSLg (see exportProjectSheet/dataHandlers history), so the
+  // renderer attaches photos via drag-and-drop instead — `webUtils` resolves
+  // the dropped File to an absolute path, which lands here to be copied into
+  // the managed store. Reading hands back a data URL so the renderer can
+  // show it inline without any custom-protocol/CSP plumbing.
+  ipcMain.handle(IPC_CHANNELS.photosImport, (_event, sourcePath: string): PhotoImportResult => {
+    return { reference: importPhoto(sourcePath) }
+  })
+  ipcMain.handle(IPC_CHANNELS.photosRead, (_event, reference: string): string | null => {
+    return readPhotoDataUrl(reference)
+  })
 
   // --- Excel export -----------------------------------------------------------
   // "Export inventory sheet for [Project]" (plan's Excel Export section).
