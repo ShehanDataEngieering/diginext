@@ -130,10 +130,9 @@ export interface DashboardRollup {
 }
 
 // Result of "Export inventory sheet for [Project]" (see plan's Excel Export
-// section). `canceled` distinguishes "user dismissed the save dialog" (no
-// error, nothing written) from a real failure — the renderer only needs to
-// show something for the latter.
+// section). Always written straight to a fixed, user-visible folder rather
+// than via a save-as picker — see the IPC handler for why — so this is just
+// "where did it land", not a cancelable interaction.
 export interface ExportProjectResult {
-  canceled: boolean
-  filePath?: string
+  filePath: string
 }

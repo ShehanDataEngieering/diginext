@@ -106,19 +106,16 @@ export function ProjectsPage(): React.JSX.Element {
   }
 
   // "Export inventory sheet for [Project]" (plan's Excel Export section).
-  // The actual file-picking and writing happens in the main process — this
-  // just triggers it and reports back. A canceled save dialog isn't an
-  // error, so it's distinguished from real failures rather than surfaced
-  // through the same `error` banner as everything else on this page.
+  // The main process writes straight to a fixed "Diginext Inventory Exports"
+  // folder under Documents (no save-as picker — see dataHandlers.ts for why
+  // native dialogs aren't usable here) and hands back exactly where it landed.
   async function handleExport(project: Project): Promise<void> {
     setExportingId(project.id)
     setError(null)
     setNotice(null)
     try {
       const result = await window.api.excel.exportProject(project.id)
-      if (!result.canceled && result.filePath) {
-        setNotice(`Exported "${project.name}" to ${result.filePath}`)
-      }
+      setNotice(`Exported "${project.name}" to ${result.filePath}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

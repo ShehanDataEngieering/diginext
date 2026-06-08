@@ -240,8 +240,15 @@ export function readExportMarker(workbook: WorkBook): ExportMarker | null {
   }
 }
 
-/** Suggested filename for the save dialog — keeps the recipient's familiar naming. */
-export function suggestedExportFileName(project: Project): string {
+/**
+ * Output filename — keeps the recipient's familiar "Inventory - <Project>"
+ * naming, with a date stamp so re-exporting the same project on a later day
+ * produces a new file rather than silently overwriting the one already sent
+ * out (we write straight to a fixed folder rather than via a save-as picker —
+ * see the IPC handler for why).
+ */
+export function exportFileName(project: Project, date: Date = new Date()): string {
   const safeName = project.name.replace(/[\\/:*?"<>|]+/g, ' ').trim()
-  return `Inventory - ${safeName}.xlsx`
+  const stamp = date.toISOString().slice(0, 10)
+  return `Inventory - ${safeName} - ${stamp}.xlsx`
 }

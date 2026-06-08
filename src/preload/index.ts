@@ -67,9 +67,10 @@ const api = {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
   },
   excel: {
-    // Builds the per-project workbook in the main process and opens a native
-    // "Save As" dialog there (it has to run main-side). Resolves with
-    // `canceled: true` if the user dismisses the dialog — not an error.
+    // Builds the per-project workbook and writes it straight to a fixed,
+    // user-visible "Diginext Inventory Exports" folder under Documents (no
+    // save-as picker — see dataHandlers.ts for why), resolving with the path
+    // it landed at.
     exportProject: (projectId: number): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId)
   }
