@@ -1,21 +1,24 @@
 // Builds a per-project inventory workbook for "Export inventory sheet for
-// [Project]" (see plan's Excel Export section). Pure functions — no DB or
-// Electron access — mirroring parseMasterInventory.ts's approach so this
-// stays easy to test and so the row-block shape it writes can be reused
-// (read this time, not written) by the future import/reconciliation milestone.
+// [Project]" (see plan's Excel Export section).
 //
-// Layout reference: `Inventory - At North Copenhagen (1).xlsx`'s "in" sheet,
-// inspected directly while designing this module. That sheet's column order
-// (0-indexed, matching the arrays below) is:
-//   0 Category | 1 Item No | 2 Item Name | 3 Quantity | 4 Serial Number/s |
-//   5 Initial-Photo Evidence | 6 Initial Audit Date | 7 Remarks |
-//   8 Hand Over-Photo Evidence | 9 Hand Over-Date | 10 Remarks
-// Item blocks: one row per item type (category shown only on the first row of
-// each category group, via a merged cell), followed by one row per serialized
-// unit of that item (blank category/item-no/name/qty cells, serial + photo +
-// audit + remarks filled in). Items with no serialized units stop at the
-// item-type row.
+// Written with `exceljs` rather than the `xlsx` package used elsewhere in
+// this app (parseMasterInventory.ts, maybeSeed.ts, and `readExportMarker`
+// below): matching the reference templates' *look* — not just their data
+// layout — needs cell fills, fonts, text rotation, and an embedded logo
+// image. The community build of `xlsx` can read all of that but can't write
+// any of it; `exceljs` can do both, so it's the right tool for this write
+// path specifically. Reading workbooks back (the future import milestone)
+// stays on `xlsx`, consistent with the rest of the app — styling is
+// irrelevant once you're just extracting cell values, and `readExportMarker`
+// only needs to read what *any* writer (ours or a hand-edited copy) produced.
+//
+// Layout & styling reference: `Inventory - GVX 03 - Gävle (1).xlsx`'s "May 7"
+// sheet, inspected directly while designing this module — logo placement,
+// the title banner, blue column headers, and per-category colour bands with
+// rotated labels all come from there.
+import ExcelJS from 'exceljs'
 import { utils, type WorkBook } from 'xlsx'
+import { DIGINEXT_LOGO_BASE64 } from './diginextLogo'
 import type { Item, ItemUnitWithDetails, Project } from '../../shared/ipc'
 
 // Name of the visible data sheet — kept generic ("in") rather than
@@ -47,49 +50,88 @@ const COLUMN_HEADERS = [
   'Remarks'
 ]
 
+// Column widths for the *data* columns (Category .. last Remarks) — column A
+// (the blank left margin) and the logo/title columns get their own widths
+// set directly against the worksheet below.
+const COLUMN_WIDTHS = [22, 9, 28, 10, 20, 24, 16, 26, 24, 16, 26]
+
+// --- Brand palette, lifted from the reference template -----------------------
+// (See "look at the normal project... it should be like that" — the goal is
+// recognisable branding, not pixel-perfect colour matching.)
+const TITLE_FILL = 'FF1F3864' // dark navy banner behind "Project Inventory"
+const HEADER_FILL = 'FF2E5395' // medium blue column-header row
+const WHITE_FONT = 'FFFFFFFF'
+const DARK_FONT = 'FF1F1F1F'
+
+// The reference cycles a handful of fill colours across category bands —
+// alternating them here keeps adjacent categories visually distinct without
+// needing per-category colour assignments stored anywhere. Paired `text`
+// colours keep contrast readable against both light and dark fills.
+const CATEGORY_PALETTE: { fill: string; text: string }[] = [
+  { fill: 'FFFFFF00', text: DARK_FONT }, // yellow
+  { fill: 'FF92D050', text: DARK_FONT }, // green
+  { fill: 'FFBDD7EE', text: DARK_FONT }, // light blue
+  { fill: 'FF7030A0', text: WHITE_FONT } // purple
+]
+
 export interface ExportMarker {
   projectId: number
   projectName: string
   exportedAt: string // ISO 8601 timestamp
 }
 
-type SheetCell = string | number
-type MergeRange = { s: { r: number; c: number }; e: { r: number; c: number } }
+type RowValues = (string | number)[]
+
+interface CategoryBand {
+  startRow: number
+  endRow: number
+  category: string
+  paletteIndex: number
+}
+
+interface ItemSpan {
+  startRow: number
+  endRow: number
+}
 
 /**
- * Assembles the workbook for one project: a header block (name/location/
- * updated-by/date), the column-header row, then one row-block per item type
- * (its current total at this project plus a row per serialized unit), and a
- * hidden metadata sheet carrying the re-import marker.
+ * Assembles the workbook for one project: a logo + title banner, a header
+ * block (name/location/updated-by/last-updated-date), the column-header row,
+ * then one row-block per item type (its current total at this project plus a
+ * row per serialized unit, with category bands coloured and rotated like the
+ * reference), and a hidden metadata sheet carrying the re-import marker.
  *
  * `units` may contain units for other projects too (callers can pass the
  * full list from a single `listItemUnits` call); only units actually
  * assigned to `project.id` are included here.
  */
-export function buildProjectInventoryWorkbook(
+export async function buildProjectInventoryWorkbook(
   project: Project,
   items: Item[],
   units: ItemUnitWithDetails[]
-): WorkBook {
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet(EXPORT_DATA_SHEET, {
+    views: [{ showGridLines: true }]
+  })
+
+  // Column A is a deliberate blank left margin (matches the reference's
+  // layout — everything starts at column B), then the data columns.
+  sheet.getColumn(1).width = 4
+  COLUMN_WIDTHS.forEach((width, index) => {
+    sheet.getColumn(index + 2).width = width
+  })
+
   const unitsByItemId = groupUnitsByItem(units, project.id)
-  const { rows, merges } = buildDataRows(project, items, unitsByItemId)
 
-  // The reference templates leave column A blank — everything (title, header
-  // block, table) starts at column B, giving the sheet a left margin. Shift
-  // our content over to match that familiar look rather than hugging the
-  // edge of the sheet.
-  const offsetRows = rows.map((row) => ['', ...row])
-  const offsetMerges = merges.map((merge) => ({
-    s: { r: merge.s.r, c: merge.s.c + 1 },
-    e: { r: merge.e.r, c: merge.e.c + 1 }
-  }))
+  writeLogo(workbook, sheet)
+  writeTitleBanner(sheet)
+  writeHeaderBlock(sheet, project)
+  writeColumnHeaders(sheet)
+  const { categoryBands, itemSpans } = writeItemRows(sheet, items, unitsByItemId)
+  applyCategoryBandStyling(sheet, categoryBands)
+  applyItemSpanMerges(sheet, itemSpans)
 
-  const sheet = utils.aoa_to_sheet(offsetRows)
-  sheet['!merges'] = offsetMerges
-  sheet['!cols'] = [{ wch: 4 }, ...COLUMN_WIDTHS.map((wch) => ({ wch }))]
-
-  const workbook = utils.book_new()
-  utils.book_append_sheet(workbook, sheet, EXPORT_DATA_SHEET)
   appendMetaSheet(workbook, {
     projectId: project.id,
     projectName: project.name,
@@ -99,7 +141,7 @@ export function buildProjectInventoryWorkbook(
   return workbook
 }
 
-const COLUMN_WIDTHS = [22, 9, 28, 10, 20, 24, 16, 26, 24, 16, 26]
+const COLUMN_B = 2 // first data column (Category) — column A is the blank margin
 
 function groupUnitsByItem(
   units: ItemUnitWithDetails[],
@@ -115,122 +157,280 @@ function groupUnitsByItem(
   return map
 }
 
-function buildDataRows(
-  project: Project,
+// --- Logo + title -------------------------------------------------------------
+
+const LOGO_NATIVE_WIDTH = 454
+const LOGO_NATIVE_HEIGHT = 111
+const LOGO_DISPLAY_WIDTH = 170
+const LOGO_DISPLAY_HEIGHT = Math.round(
+  (LOGO_DISPLAY_WIDTH / LOGO_NATIVE_WIDTH) * LOGO_NATIVE_HEIGHT
+)
+
+function writeLogo(workbook: ExcelJS.Workbook, sheet: ExcelJS.Worksheet): void {
+  const imageId = workbook.addImage({ base64: DIGINEXT_LOGO_BASE64, extension: 'png' })
+  // Anchored at column B (index 1, zero-based), row 2 (index 1) — matches
+  // where the reference places its logo, just inside the blank left margin.
+  sheet.addImage(imageId, {
+    tl: { col: 1, row: 1 },
+    ext: { width: LOGO_DISPLAY_WIDTH, height: LOGO_DISPLAY_HEIGHT }
+  })
+}
+
+const TITLE_ROW = 2
+const TITLE_FIRST_COL = COLUMN_B + 4 // leaves room for the logo to its left
+const TITLE_LAST_COL = TITLE_FIRST_COL + 2
+
+function writeTitleBanner(sheet: ExcelJS.Worksheet): void {
+  sheet.mergeCells(TITLE_ROW, TITLE_FIRST_COL, TITLE_ROW + 2, TITLE_LAST_COL)
+  const cell = sheet.getCell(TITLE_ROW, TITLE_FIRST_COL)
+  cell.value = 'Project Inventory'
+  cell.font = { bold: true, size: 16, color: { argb: WHITE_FONT } }
+  cell.alignment = { vertical: 'middle', horizontal: 'center' }
+  fillRange(sheet, TITLE_ROW, TITLE_FIRST_COL, TITLE_ROW + 2, TITLE_LAST_COL, TITLE_FILL)
+  sheet.getRow(TITLE_ROW).height = 20
+  sheet.getRow(TITLE_ROW + 1).height = 20
+  sheet.getRow(TITLE_ROW + 2).height = 20
+}
+
+// --- Header block (Project Name / Location / Updated by / Last Updated) -------
+
+const HEADER_BLOCK_FIRST_ROW = 6
+
+function writeHeaderBlock(sheet: ExcelJS.Worksheet, project: Project): void {
+  const labelCol = COLUMN_B
+  const valueCol = COLUMN_B + 2
+
+  writeLabelValueRow(sheet, HEADER_BLOCK_FIRST_ROW, labelCol, 'Project Name :', valueCol, project.name)
+  writeLabelValueRow(
+    sheet,
+    HEADER_BLOCK_FIRST_ROW + 1,
+    labelCol,
+    'Project Location:',
+    valueCol,
+    project.location ?? ''
+  )
+  writeLabelValueRow(
+    sheet,
+    HEADER_BLOCK_FIRST_ROW + 2,
+    labelCol,
+    'Updated by:',
+    valueCol,
+    project.updatedBy ?? ''
+  )
+
+  // "Last Updated Date:" sits to the right of the name row, mirroring the
+  // reference's layout — and shows the project's own tracked date (the field
+  // site leads already track and expect to revise), not "when was this file
+  // generated", which is a different and less useful fact to hand back.
+  const dateLabelCol = COLUMN_B + 4
+  const dateValueCol = COLUMN_B + 5
+  const labelCell = sheet.getCell(HEADER_BLOCK_FIRST_ROW, dateLabelCol)
+  labelCell.value = 'Last Updated Date:'
+  labelCell.font = { bold: true }
+  sheet.getCell(HEADER_BLOCK_FIRST_ROW, dateValueCol).value =
+    project.lastUpdatedDate ?? new Date().toISOString().slice(0, 10)
+}
+
+function writeLabelValueRow(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  labelCol: number,
+  label: string,
+  valueCol: number,
+  value: string
+): void {
+  const labelCell = sheet.getCell(row, labelCol)
+  labelCell.value = label
+  labelCell.font = { bold: true }
+  sheet.getCell(row, valueCol).value = value
+}
+
+// --- Column header row ---------------------------------------------------------
+
+const COLUMN_HEADER_ROW = HEADER_BLOCK_FIRST_ROW + 4
+
+function writeColumnHeaders(sheet: ExcelJS.Worksheet): void {
+  const row = sheet.getRow(COLUMN_HEADER_ROW)
+  COLUMN_HEADERS.forEach((header, index) => {
+    const cell = row.getCell(COLUMN_B + index)
+    cell.value = header
+    cell.font = { bold: true, color: { argb: WHITE_FONT } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } }
+  })
+  row.height = 32
+}
+
+// --- Item row-blocks, grouped by category --------------------------------------
+
+const FIRST_ITEM_ROW = COLUMN_HEADER_ROW + 1
+const QUANTITY_COL = COLUMN_B + 3
+const SERIAL_COL = COLUMN_B + 4
+const PHOTO_COL = COLUMN_B + 5
+const AUDIT_DATE_COL = COLUMN_B + 6
+const REMARKS_COL = COLUMN_B + 7
+
+function writeItemRows(
+  sheet: ExcelJS.Worksheet,
   items: Item[],
   unitsByItemId: Map<number, ItemUnitWithDetails[]>
-): { rows: SheetCell[][]; merges: MergeRange[] } {
-  const rows: SheetCell[][] = []
-  const merges: MergeRange[] = []
+): { categoryBands: CategoryBand[]; itemSpans: ItemSpan[] } {
+  const categoryBands: CategoryBand[] = []
+  const itemSpans: ItemSpan[] = []
 
-  // --- Title + header block, mirroring the reference template's row spacing -
-  rows.push([])
-  rows.push(['', '', '', '', 'Project Inventory'])
-  rows.push([])
-  merges.push({ s: { r: 1, c: 4 }, e: { r: 2, c: 6 } })
-  rows.push([])
-  rows.push([
-    'Project Name :',
-    '',
-    project.name,
-    '',
-    // Reference templates label this "Last Updated Date:" and show the
-    // project's own tracked last-updated date (the field site leads already
-    // expect to see and revise) — not "when did the app generate this file",
-    // which would be a different, less useful piece of information to them.
-    // Fall back to today only for projects that have never recorded one.
-    'Last Updated Date:',
-    project.lastUpdatedDate ?? new Date().toISOString().slice(0, 10)
-  ])
-  rows.push(['Project Location:', '', project.location ?? ''])
-  rows.push(['Updated by:', '', project.updatedBy ?? ''])
-  rows.push([])
-
-  // --- Column headers --------------------------------------------------------
-  rows.push([...COLUMN_HEADERS])
-
-  // --- Item blocks, grouped by category (catalog order; categories merge
-  // their cell down the full group, like the reference) ----------------------
+  let nextRow = FIRST_ITEM_ROW
   let itemNo = 1
   let groupCategory: string | null = null
-  let groupStartRow = rows.length
+  let groupStartRow = nextRow
+  let paletteIndex = -1
 
-  const closeCategoryGroup = (): void => {
-    if (groupCategory !== null && rows.length - 1 > groupStartRow) {
-      merges.push({ s: { r: groupStartRow, c: 0 }, e: { r: rows.length - 1, c: 0 } })
+  const closeCategoryBand = (endRow: number): void => {
+    if (groupCategory !== null && endRow > groupStartRow) {
+      categoryBands.push({
+        startRow: groupStartRow,
+        endRow,
+        category: groupCategory,
+        paletteIndex
+      })
+    } else if (groupCategory !== null) {
+      // Single-row group — still needs its label written (no merge to carry it).
+      const cell = sheet.getCell(groupStartRow, COLUMN_B)
+      cell.value = groupCategory
+      categoryBands.push({
+        startRow: groupStartRow,
+        endRow: groupStartRow,
+        category: groupCategory,
+        paletteIndex
+      })
     }
   }
 
   for (const item of items) {
     if (item.category !== groupCategory) {
-      closeCategoryGroup()
+      closeCategoryBand(nextRow - 1)
       groupCategory = item.category
-      groupStartRow = rows.length
+      groupStartRow = nextRow
+      paletteIndex += 1
     }
 
     const itemUnits = unitsByItemId.get(item.id) ?? []
     const serializedUnits = itemUnits.filter((unit) => unit.serialId !== null && unit.serialId !== '')
 
-    const itemRowIndex = rows.length
-    rows.push([
-      rows.length === groupStartRow ? item.category : '',
-      itemNo,
-      item.name,
+    const itemRow = nextRow
+    writeRowValues(sheet, itemRow, [
+      [COLUMN_B + 1, itemNo],
+      [COLUMN_B + 2, item.name],
       // The reference templates write a literal "-" for "none of this here"
       // rather than leaving the cell blank — matches what site leads expect
       // to see for items they don't have (vs. "0", which would read as "we
       // had some and used them all").
-      itemUnits.length > 0 ? itemUnits.length : '-'
+      [QUANTITY_COL, itemUnits.length > 0 ? itemUnits.length : '-']
     ])
     itemNo += 1
+    nextRow += 1
 
     for (const unit of serializedUnits) {
-      rows.push([
-        '',
-        '',
-        '',
-        '',
-        unit.serialId ?? '',
-        unit.photoEvidenceRef ?? '',
-        unit.auditDate ?? '',
-        unit.remarks ?? ''
+      writeRowValues(sheet, nextRow, [
+        [SERIAL_COL, unit.serialId ?? ''],
+        [PHOTO_COL, unit.photoEvidenceRef ?? ''],
+        [AUDIT_DATE_COL, unit.auditDate ?? ''],
+        [REMARKS_COL, unit.remarks ?? '']
       ])
+      nextRow += 1
     }
 
-    // Span "Item No"/"Item Name"/"Quantity" down across this item's unit rows
-    // too — the reference template merges these the same way it merges Category.
-    if (rows.length - 1 > itemRowIndex) {
-      merges.push({ s: { r: itemRowIndex, c: 1 }, e: { r: rows.length - 1, c: 1 } })
-      merges.push({ s: { r: itemRowIndex, c: 2 }, e: { r: rows.length - 1, c: 2 } })
-      merges.push({ s: { r: itemRowIndex, c: 3 }, e: { r: rows.length - 1, c: 3 } })
+    if (nextRow - 1 > itemRow) {
+      itemSpans.push({ startRow: itemRow, endRow: nextRow - 1 })
     }
 
-    rows.push([]) // blank separator row between item blocks, per the reference
+    nextRow += 1 // blank separator row between item blocks, per the reference
   }
-  closeCategoryGroup()
 
-  return { rows, merges }
+  closeCategoryBand(nextRow - 2)
+
+  return { categoryBands, itemSpans }
 }
 
-function appendMetaSheet(workbook: WorkBook, marker: ExportMarker): void {
-  const rows: SheetCell[][] = [
+function writeRowValues(sheet: ExcelJS.Worksheet, row: number, cells: [number, string | number][]): void {
+  for (const [col, value] of cells) {
+    sheet.getCell(row, col).value = value
+  }
+}
+
+/**
+ * Merges and styles each category's cell with a fill colour and rotated
+ * vertical text — the reference's convention for making category groupings
+ * scannable at a glance down a long sheet.
+ */
+function applyCategoryBandStyling(sheet: ExcelJS.Worksheet, bands: CategoryBand[]): void {
+  for (const band of bands) {
+    const palette = CATEGORY_PALETTE[band.paletteIndex % CATEGORY_PALETTE.length]
+
+    if (band.endRow > band.startRow) {
+      sheet.mergeCells(band.startRow, COLUMN_B, band.endRow, COLUMN_B)
+    }
+
+    const cell = sheet.getCell(band.startRow, COLUMN_B)
+    cell.value = band.category
+    cell.font = { bold: true, color: { argb: palette.text } }
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      textRotation: 90,
+      wrapText: true
+    }
+    fillRange(sheet, band.startRow, COLUMN_B, band.endRow, COLUMN_B, palette.fill)
+  }
+}
+
+/**
+ * Spans "Item No" / "Item Name" / "Quantity" down across each item's
+ * serialized-unit rows — the reference template merges these the same way it
+ * merges Category, so a multi-serial item type still reads as one entry.
+ */
+function applyItemSpanMerges(sheet: ExcelJS.Worksheet, spans: ItemSpan[]): void {
+  for (const span of spans) {
+    sheet.mergeCells(span.startRow, COLUMN_B + 1, span.endRow, COLUMN_B + 1)
+    sheet.mergeCells(span.startRow, COLUMN_B + 2, span.endRow, COLUMN_B + 2)
+    sheet.mergeCells(span.startRow, QUANTITY_COL, span.endRow, QUANTITY_COL)
+    for (const col of [COLUMN_B + 1, COLUMN_B + 2, QUANTITY_COL]) {
+      const cell = sheet.getCell(span.startRow, col)
+      cell.alignment = { ...cell.alignment, vertical: 'middle' }
+    }
+  }
+}
+
+function fillRange(
+  sheet: ExcelJS.Worksheet,
+  startRow: number,
+  startCol: number,
+  endRow: number,
+  endCol: number,
+  argb: string
+): void {
+  for (let row = startRow; row <= endRow; row += 1) {
+    for (let col = startCol; col <= endCol; col += 1) {
+      sheet.getCell(row, col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+    }
+  }
+}
+
+// --- Hidden metadata sheet ------------------------------------------------------
+
+function appendMetaSheet(workbook: ExcelJS.Workbook, marker: ExportMarker): void {
+  const sheet = workbook.addWorksheet(EXPORT_META_SHEET, { state: 'hidden' })
+  const rows: RowValues[] = [
     ['key', 'value'],
     ['format', EXPORT_FORMAT_TAG],
     ['projectId', marker.projectId],
     ['projectName', marker.projectName],
     ['exportedAt', marker.exportedAt]
   ]
-  const sheet = utils.aoa_to_sheet(rows)
-  utils.book_append_sheet(workbook, sheet, EXPORT_META_SHEET)
-
-  // Mark the sheet hidden so it doesn't confuse whoever opens the file to
-  // fill it in — it's a machine-readable marker for the re-import step, not
-  // part of the form. `Workbook.Sheets[i].Hidden = 1` is SheetJS's documented
-  // way to flag a sheet hidden when writing with the community `xlsx` build.
-  const sheetIndex = workbook.SheetNames.indexOf(EXPORT_META_SHEET)
-  workbook.Workbook = workbook.Workbook ?? {}
-  workbook.Workbook.Sheets = workbook.Workbook.Sheets ?? []
-  workbook.Workbook.Sheets[sheetIndex] = { Hidden: 1 }
+  rows.forEach((row, index) => {
+    row.forEach((value, col) => {
+      sheet.getCell(index + 1, col + 1).value = value
+    })
+  })
 }
 
 /**
@@ -239,12 +439,17 @@ function appendMetaSheet(workbook: WorkBook, marker: ExportMarker): void {
  * spreadsheet belongs to without trusting filenames or the editable header
  * block. Returns null for files that aren't ours (e.g. the original
  * hand-authored templates) so the importer can fall back to other matching.
+ *
+ * Deliberately reads via `xlsx` (not `exceljs`) — this mirrors how the rest
+ * of the app's import-side code parses workbooks (`parseMasterInventory.ts`),
+ * and a hidden key/value sheet round-trips identically through either writer,
+ * so there's no need to drag `exceljs` into the read path just for this.
  */
 export function readExportMarker(workbook: WorkBook): ExportMarker | null {
   const sheet = workbook.Sheets[EXPORT_META_SHEET]
   if (!sheet) return null
 
-  const rows = utils.sheet_to_json<SheetCell[]>(sheet, { header: 1, raw: false, defval: '' })
+  const rows = utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, raw: false, defval: '' })
   const values = new Map(rows.slice(1).map((row) => [String(row[0]), String(row[1] ?? '')]))
 
   if (values.get('format') !== EXPORT_FORMAT_TAG) return null
