@@ -74,9 +74,19 @@ export function buildProjectInventoryWorkbook(
   const unitsByItemId = groupUnitsByItem(units, project.id)
   const { rows, merges } = buildDataRows(project, items, unitsByItemId)
 
-  const sheet = utils.aoa_to_sheet(rows)
-  sheet['!merges'] = merges
-  sheet['!cols'] = COLUMN_WIDTHS.map((wch) => ({ wch }))
+  // The reference templates leave column A blank — everything (title, header
+  // block, table) starts at column B, giving the sheet a left margin. Shift
+  // our content over to match that familiar look rather than hugging the
+  // edge of the sheet.
+  const offsetRows = rows.map((row) => ['', ...row])
+  const offsetMerges = merges.map((merge) => ({
+    s: { r: merge.s.r, c: merge.s.c + 1 },
+    e: { r: merge.e.r, c: merge.e.c + 1 }
+  }))
+
+  const sheet = utils.aoa_to_sheet(offsetRows)
+  sheet['!merges'] = offsetMerges
+  sheet['!cols'] = [{ wch: 4 }, ...COLUMN_WIDTHS.map((wch) => ({ wch }))]
 
   const workbook = utils.book_new()
   utils.book_append_sheet(workbook, sheet, EXPORT_DATA_SHEET)
@@ -161,7 +171,11 @@ function buildDataRows(
       rows.length === groupStartRow ? item.category : '',
       itemNo,
       item.name,
-      itemUnits.length > 0 ? itemUnits.length : ''
+      // The reference templates write a literal "-" for "none of this here"
+      // rather than leaving the cell blank — matches what site leads expect
+      // to see for items they don't have (vs. "0", which would read as "we
+      // had some and used them all").
+      itemUnits.length > 0 ? itemUnits.length : '-'
     ])
     itemNo += 1
 
