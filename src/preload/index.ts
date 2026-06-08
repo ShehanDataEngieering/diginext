@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import {
   BackupInfo,
   DashboardRollup,
+  ExportProjectResult,
   IPC_CHANNELS,
   Item,
   ItemInput,
@@ -64,6 +65,14 @@ const api = {
   },
   dashboard: {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
+  },
+  excel: {
+    // Builds the per-project workbook and writes it straight to a fixed,
+    // user-visible "Diginext Inventory Exports" folder under Documents (no
+    // save-as picker — see dataHandlers.ts for why), resolving with the path
+    // it landed at.
+    exportProject: (projectId: number): Promise<ExportProjectResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId)
   }
 }
 

@@ -22,7 +22,9 @@ export const IPC_CHANNELS = {
   itemUnitsUpdate: 'item-units:update',
   itemUnitsDelete: 'item-units:delete',
 
-  dashboardRollup: 'dashboard:rollup'
+  dashboardRollup: 'dashboard:rollup',
+
+  excelExportProject: 'excel:export-project'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
@@ -125,4 +127,12 @@ export interface DashboardRow {
 export interface DashboardRollup {
   projects: Pick<Project, 'id' | 'name'>[]
   rows: DashboardRow[]
+}
+
+// Result of "Export inventory sheet for [Project]" (see plan's Excel Export
+// section). Always written straight to a fixed, user-visible folder rather
+// than via a save-as picker — see the IPC handler for why — so this is just
+// "where did it land", not a cancelable interaction.
+export interface ExportProjectResult {
+  filePath: string
 }

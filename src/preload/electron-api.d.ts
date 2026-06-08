@@ -2,6 +2,7 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   BackupInfo,
   DashboardRollup,
+  ExportProjectResult,
   Item,
   ItemInput,
   ItemUnitFilter,
@@ -41,6 +42,9 @@ interface Api {
   }
   dashboard: {
     rollup: () => Promise<DashboardRollup>
+  }
+  excel: {
+    exportProject: (projectId: number) => Promise<ExportProjectResult>
   }
 }
 
