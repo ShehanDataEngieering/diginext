@@ -1,6 +1,16 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ArrowUpDown, Info, MoreVertical, Pencil, Search, Trash2 } from 'lucide-react'
-import type { DashboardRollup, DashboardRow, Item, ItemInput } from '@shared/ipc'
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
+  Info,
+  MoreVertical,
+  Pencil,
+  Search,
+  Trash2
+} from 'lucide-react'
+import type { DashboardRollup, DashboardRow, Item, ItemInput, ItemUnitWithDetails } from '@shared/ipc'
+import { PhotoThumbnail } from '@/components/PhotoThumbnail'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -109,6 +119,11 @@ export function DashboardPage({
   categorySeed?: { category: string; nonce: number } | null
 }): React.JSX.Element {
   const [rollup, setRollup] = useState<DashboardRollup | null>(null)
+  // Loaded once alongside the rollup and grouped client-side by item — backs
+  // the per-row "show units" drill-down (client wants to see each unit's
+  // unique/serial ID, and its photo, without a separate page round-trip).
+  const [units, setUnits] = useState<ItemUnitWithDetails[]>([])
+  const [expandedItemId, setExpandedItemId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES)
@@ -120,11 +135,29 @@ export function DashboardPage({
 
   async function reload(): Promise<void> {
     try {
-      setRollup(await window.api.dashboard.rollup())
+      const [rollupResult, unitRows] = await Promise.all([
+        window.api.dashboard.rollup(),
+        window.api.itemUnits.list()
+      ])
+      setRollup(rollupResult)
+      setUnits(unitRows)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }
+
+  // Groups the flat unit list by item type so each row's drill-down can show
+  // "which physical units (by serial/unique ID) make up this total" without
+  // any extra IPC surface — the rollup already gives us the aggregate counts.
+  const unitsByItemId = useMemo(() => {
+    const map = new Map<number, ItemUnitWithDetails[]>()
+    for (const unit of units) {
+      const list = map.get(unit.itemId)
+      if (list) list.push(unit)
+      else map.set(unit.itemId, [unit])
+    }
+    return map
+  }, [units])
 
   useEffect(() => {
     reload()
@@ -283,6 +316,7 @@ export function DashboardPage({
         <table className="w-full table-fixed border-collapse text-[13px]">
           <thead className="sticky top-0 z-10 bg-[#EFEFEF]">
             <tr className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+              <th className="w-[28px] px-1 py-2" />
               <th className="px-3 py-2 text-left">Item</th>
               <th className="w-[82px] px-3 py-2 text-right">Initial stock</th>
               {rollup.projects.map((project) => (
@@ -309,7 +343,7 @@ export function DashboardPage({
               <Fragment key={group.category}>
                 <tr className="border-y border-gray-200 bg-[#F4F4F4]">
                   <td
-                    colSpan={5 + rollup.projects.length}
+                    colSpan={6 + rollup.projects.length}
                     className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase"
                   >
                     <span className="inline-flex items-center gap-1.5">
@@ -318,14 +352,28 @@ export function DashboardPage({
                     </span>
                   </td>
                 </tr>
-                {group.rows.map((row, idx) => (
+                {group.rows.map((row, idx) => {
+                  const rowUnits = unitsByItemId.get(row.itemId) ?? []
+                  const expanded = expandedItemId === row.itemId
+                  return (
+                  <Fragment key={row.itemId}>
                   <tr
-                    key={row.itemId}
                     className={cn(
                       'group border-b border-gray-100 transition-colors hover:bg-blue-50/40',
-                      idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                      idx % 2 === 0 ? 'bg-gray-50' : 'bg-white',
+                      expanded && 'bg-blue-50/40'
                     )}
                   >
+                    <td className="px-1 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedItemId(expanded ? null : row.itemId)}
+                        className="text-gray-400 hover:text-gray-700"
+                        title={expanded ? 'Hide individual units' : 'Show individual units (serial/unique IDs, photos)'}
+                      >
+                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                    </td>
                     <td className="px-3 py-2 text-[13px] font-medium text-gray-900">{row.name}</td>
                     <NumericCell value={row.initialStock} />
                     {rollup.projects.map((project) => (
@@ -358,12 +406,58 @@ export function DashboardPage({
                       </DropdownMenu>
                     </td>
                   </tr>
-                ))}
+                  {expanded && (
+                    <tr className="border-b border-gray-200 bg-blue-50/20">
+                      <td colSpan={6 + rollup.projects.length} className="px-3 py-2.5 pl-9">
+                        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+                          <table className="w-full text-[12px]">
+                            <thead className="bg-gray-50">
+                              <tr className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                                <th className="px-2.5 py-1.5 text-left">Serial / unique ID</th>
+                                <th className="px-2.5 py-1.5 text-left">Project</th>
+                                <th className="px-2.5 py-1.5 text-left">Status</th>
+                                <th className="px-2.5 py-1.5 text-left">Photo</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rowUnits.map((unit) => (
+                                <tr key={unit.id} className="border-t border-gray-100">
+                                  <td className="px-2.5 py-1.5 font-medium text-gray-800">
+                                    {unit.serialId ?? <span className="text-gray-300">—</span>}
+                                  </td>
+                                  <td className="px-2.5 py-1.5 text-gray-600">
+                                    {unit.projectName ?? <span className="text-gray-400">Available</span>}
+                                  </td>
+                                  <td className="px-2.5 py-1.5 text-gray-600">{unit.status}</td>
+                                  <td className="px-2.5 py-1.5">
+                                    <PhotoThumbnail
+                                      reference={unit.photoEvidenceRef}
+                                      label={unit.serialId ?? `${row.name} (unit #${unit.id})`}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                              {rowUnits.length === 0 && (
+                                <tr>
+                                  <td colSpan={4} className="px-2.5 py-2.5 text-center text-gray-400">
+                                    No individually-tracked units recorded for this item yet.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </Fragment>
             ))}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={5 + rollup.projects.length} className="px-3 py-6 text-center text-[13px] text-gray-400">
+                <td colSpan={6 + rollup.projects.length} className="px-3 py-6 text-center text-[13px] text-gray-400">
                   No items match these filters.
                 </td>
               </tr>

@@ -8,6 +8,7 @@ import type {
   ItemUnitFilter,
   ItemUnitInput,
   ItemUnitWithDetails,
+  PhotoImportResult,
   Project,
   ProjectInput,
   ProjectStatus
@@ -45,6 +46,11 @@ interface Api {
   }
   excel: {
     exportProject: (projectId: number) => Promise<ExportProjectResult>
+  }
+  photos: {
+    pathForFile: (file: File) => string
+    import: (sourcePath: string) => Promise<PhotoImportResult>
+    read: (reference: string) => Promise<string | null>
   }
 }
 

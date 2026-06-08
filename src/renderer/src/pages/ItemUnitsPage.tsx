@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhotoDropField } from '@/components/PhotoDropField'
+import { PhotoThumbnail } from '@/components/PhotoThumbnail'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -223,6 +225,7 @@ export function ItemUnitsPage({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Photo</TableHead>
               <TableHead>Item</TableHead>
               <TableHead>Serial / ID</TableHead>
               <TableHead>Project</TableHead>
@@ -235,6 +238,12 @@ export function ItemUnitsPage({
           <TableBody>
             {units?.map((unit) => (
               <TableRow key={unit.id}>
+                <TableCell>
+                  <PhotoThumbnail
+                    reference={unit.photoEvidenceRef}
+                    label={unit.serialId ?? `${unit.itemName} (unit #${unit.id})`}
+                  />
+                </TableCell>
                 <TableCell>
                   {unit.itemCategory} — {unit.itemName}
                 </TableCell>
@@ -261,7 +270,7 @@ export function ItemUnitsPage({
             ))}
             {units?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground text-center">
+                <TableCell colSpan={8} className="text-muted-foreground text-center">
                   No units match these filters.
                 </TableCell>
               </TableRow>
@@ -350,11 +359,13 @@ export function ItemUnitsPage({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="unit-photo">Photo evidence reference</Label>
-              <Input
-                id="unit-photo"
-                value={form.photoEvidenceRef}
-                onChange={(e) => setForm((f) => ({ ...f, photoEvidenceRef: e.target.value }))}
+              <Label>Photo evidence</Label>
+              <PhotoDropField
+                reference={form.photoEvidenceRef.trim() || null}
+                onChange={(reference) =>
+                  setForm((f) => ({ ...f, photoEvidenceRef: reference ?? '' }))
+                }
+                label={form.serialId.trim() || 'Photo evidence'}
               />
             </div>
             <div className="flex flex-col gap-1.5">
