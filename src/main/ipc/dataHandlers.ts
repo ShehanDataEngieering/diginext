@@ -4,7 +4,6 @@
 import { app, ipcMain } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
-import { writeFile } from 'xlsx'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import type {
@@ -109,19 +108,26 @@ export function registerDataHandlers(db: Database.Database): void {
   // predictable, user-visible folder and report the exact path back — the
   // recipient just needs *a* file to attach to an email, not to choose where
   // it lives.
-  ipcMain.handle(IPC_CHANNELS.excelExportProject, (_event, projectId: number): ExportProjectResult => {
-    const project = getProjectById(db, projectId)
-    if (!project) throw new Error(`Project ${projectId} not found`)
+  ipcMain.handle(
+    IPC_CHANNELS.excelExportProject,
+    async (_event, projectId: number): Promise<ExportProjectResult> => {
+      const project = getProjectById(db, projectId)
+      if (!project) throw new Error(`Project ${projectId} not found`)
 
-    const items = listItems(db)
-    const units = listItemUnits(db, { projectId })
-    const workbook = buildProjectInventoryWorkbook(project, items, units)
+      const items = listItems(db)
+      const units = listItemUnits(db, { projectId })
+      // Async because building the workbook now embeds the branded logo image
+      // and applies cell styling via `exceljs` (see exportProjectSheet.ts for
+      // why that module — not the `xlsx` package used elsewhere — owns this
+      // write path).
+      const workbook = await buildProjectInventoryWorkbook(project, items, units)
 
-    const dir = exportDirectory()
-    mkdirSync(dir, { recursive: true })
-    const filePath = join(dir, exportFileName(project))
-    writeFile(workbook, filePath)
+      const dir = exportDirectory()
+      mkdirSync(dir, { recursive: true })
+      const filePath = join(dir, exportFileName(project))
+      await workbook.xlsx.writeFile(filePath)
 
-    return { filePath }
-  })
+      return { filePath }
+    }
+  )
 }
