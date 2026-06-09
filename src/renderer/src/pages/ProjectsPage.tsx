@@ -237,20 +237,35 @@ export function ProjectsPage(): React.JSX.Element {
 
       {importSummary && (
         <div className="rounded-lg border bg-blue-50 p-4">
-          <h3 className="mb-2 font-semibold">Import Summary: {importSummary.projectName}</h3>
+          <h3 className="mb-2 font-semibold">
+            Import complete — {importSummary.projectName}
+            {importSummary.projectCreated && (
+              <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-normal text-emerald-700">
+                new project created
+              </span>
+            )}
+          </h3>
           <ul className="space-y-1 text-sm">
-            <li>Units added: {importSummary.unitsAdded}</li>
-            <li>Units removed: {importSummary.unitsRemoved}</li>
-            <li>Transfers recorded: {importSummary.transfersCreated}</li>
+            {importSummary.itemsCreated > 0 && (
+              <li>🆕 New item types created: {importSummary.itemsCreated}</li>
+            )}
+            <li>➕ Units added: {importSummary.unitsAdded}</li>
+            <li>✏️ Units updated (audit / remarks): {importSummary.unitsUpdated}</li>
+            <li>🔄 Units transferred here: {importSummary.transfersCreated}</li>
+            {importSummary.unitsRemoved > 0 && (
+              <li className="text-amber-700">
+                ⚠️ Units missing from sheet (review manually): {importSummary.unitsRemoved}
+              </li>
+            )}
           </ul>
           {importSummary.details.length > 0 && (
             <details className="mt-3">
               <summary className="cursor-pointer text-sm font-medium">View details</summary>
               <ul className="mt-2 space-y-1 text-xs">
                 {importSummary.details.map((detail, i) => (
-                  <li key={i}>
-                    {detail.type === 'added' && `+ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
-                    {detail.type === 'removed' && `- ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                  <li key={i} className={detail.type === 'removed' ? 'text-amber-700' : ''}>
+                    {detail.type === 'added' && `+ ${detail.itemName} (${detail.serialId ?? 'no serial'}) — ${detail.notes ?? ''}`}
+                    {detail.type === 'removed' && `⚠ ${detail.itemName} (${detail.serialId ?? 'no serial'}) — ${detail.notes ?? ''}`}
                     {detail.type === 'transferred' &&
                       `→ ${detail.itemName} (${detail.serialId ?? 'no serial'}) from ${detail.fromProject ?? 'unknown'}`}
                   </li>

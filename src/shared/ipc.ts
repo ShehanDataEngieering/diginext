@@ -183,8 +183,17 @@ export interface ImportSummary {
   projectId: number
   projectName: string
   importedAt: string
+  // True when the project did not exist and was created by this import.
+  projectCreated: boolean
+  // How many new item types (category + name pairs) were created.
+  itemsCreated: number
+  // Units that were new and did not exist anywhere in the DB.
   unitsAdded: number
+  // Units that were already at this project and had their audit/remarks updated.
+  unitsUpdated: number
+  // Units previously at this project that are no longer in the sheet (flagged only, not deleted).
   unitsRemoved: number
+  // Units that existed under a different project and were transferred here.
   transfersCreated: number
   details: ImportDetail[]
 }
