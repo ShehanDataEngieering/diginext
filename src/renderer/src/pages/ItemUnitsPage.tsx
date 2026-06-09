@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2, Search } from 'lucide-react'
 import type {
   Item,
   ItemUnitInput,
@@ -88,12 +88,14 @@ export function ItemUnitsPage({
   // Filters — match the per-item / per-project drill-down the dashboard rollup implies.
   const [itemFilter, setItemFilter] = useState(ALL)
   const [projectFilter, setProjectFilter] = useState(ALL)
+  const [serialSearch, setSerialSearch] = useState('')
 
   async function reload(): Promise<void> {
     try {
-      const filter: { itemId?: number; projectId?: number | null } = {}
+      const filter: { itemId?: number; projectId?: number | null; serialId?: string } = {}
       if (itemFilter !== ALL) filter.itemId = Number(itemFilter)
       if (projectFilter !== ALL) filter.projectId = projectFilter === UNASSIGNED ? null : Number(projectFilter)
+      if (serialSearch) filter.serialId = serialSearch
       const [unitRows, itemRows, projectRows] = await Promise.all([
         window.api.itemUnits.list(filter),
         window.api.items.list(),
@@ -216,6 +218,25 @@ export function ItemUnitsPage({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Search by serial</Label>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search by serial ID"
+              value={serialSearch}
+              onChange={(e) => setSerialSearch(e.target.value)}
+              className="w-56"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSerialSearch('')}
+              disabled={!serialSearch}
+            >
+              <Search />
+            </Button>
+          </div>
         </div>
       </div>
 

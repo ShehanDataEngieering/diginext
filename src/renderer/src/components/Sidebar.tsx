@@ -1,14 +1,18 @@
-import { Boxes, Gauge, FolderKanban, Package } from 'lucide-react'
+import { Boxes, Gauge, FolderKanban, Package, Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@shared/ipc'
+import { useAuth } from '@clerk/clerk-react'
 
-export type ViewTab = 'dashboard' | 'items' | 'projects' | 'item-units'
+export type ViewTab = 'dashboard' | 'items' | 'projects' | 'item-units' | 'settings' | 'transfers' | 'handovers'
 
 const VIEW_ITEMS: { tab: ViewTab; label: string; icon: typeof Gauge }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: Gauge },
   { tab: 'items', label: 'Items', icon: Package },
   { tab: 'projects', label: 'Projects', icon: FolderKanban },
-  { tab: 'item-units', label: 'Item units', icon: Boxes }
+  { tab: 'item-units', label: 'Item units', icon: Boxes },
+  { tab: 'transfers', label: 'Transfers', icon: Package },
+  { tab: 'handovers', label: 'Handovers', icon: FolderKanban },
+  { tab: 'settings', label: 'Settings', icon: Settings }
 ]
 
 interface SidebarProps {
@@ -97,6 +101,7 @@ export function Sidebar({
   onSelectProject,
   onSelectCategory
 }: SidebarProps): React.JSX.Element {
+  const { signOut } = useAuth()
   const activeProjects = projects.filter((p) => p.status === 'active')
 
   return (
@@ -114,6 +119,16 @@ export function Sidebar({
           }
         />
       ))}
+
+      <div className="mt-auto p-2">
+        <button
+          onClick={() => signOut()}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-gray-500 hover:bg-gray-200"
+        >
+          <LogOut size={15} />
+          <span>Sign Out</span>
+        </button>
+      </div>
 
       {activeProjects.length > 0 && (
         <>

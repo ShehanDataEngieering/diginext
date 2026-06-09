@@ -7,6 +7,9 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ItemsPage } from './pages/ItemsPage'
 import { ItemUnitsPage } from './pages/ItemUnitsPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { SettingsPage } from './pages/SettingsPage'
+import { TransferLogPage } from './pages/TransferLogPage'
+import { HandoverPage } from './pages/HandoverPage'
 
 function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
@@ -97,6 +100,21 @@ function App() {
             {activeTab === 'item-units' && (
               <div className="h-full overflow-y-auto p-3.5">
                 <ItemUnitsPage projectSeed={projectSeed} />
+              </div>
+            )}
+            {activeTab === 'transfers' && (
+              <div className="h-full overflow-y-auto p-3.5">
+                <TransferLogPage />
+              </div>
+            )}
+            {activeTab === 'handovers' && (
+              <div className="h-full overflow-y-auto p-3.5">
+                <HandoverPage />
+              </div>
+            )}
+            {activeTab === 'settings' && (
+              <div className="h-full overflow-y-auto p-3.5">
+                <SettingsPage />
               </div>
             )}
           </main>

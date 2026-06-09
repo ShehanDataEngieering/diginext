@@ -1,0 +1,26 @@
+
+◇ injected env (4) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+[encryptionKey] safeStorage unavailable — using an UNENCRYPTED dev-only key file (db.key.insecure-dev-only). This path is disabled in packaged builds.
+did not find extension DRI_Mesa version 1
+did not find extension DRI_Mesa version 1
+[594947:0609/155725.021643:ERROR:ui/gl/angle_platform_impl.cc:47] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+[594947:0609/155725.022026:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: Could not create a backing OpenGL context.
+[594947:0609/155725.022162:ERROR:ui/gl/gl_display.cc:638] eglInitialize OpenGL failed with error EGL_NOT_INITIALIZED, trying next display type
+[594947:0609/155725.024651:ERROR:ui/gl/angle_platform_impl.cc:47] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+[594947:0609/155725.024841:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: Could not create a backing OpenGL context.
+[594947:0609/155725.024980:ERROR:ui/gl/gl_display.cc:638] eglInitialize OpenGLES failed with error EGL_NOT_INITIALIZED
+[594947:0609/155725.025081:ERROR:ui/gl/gl_display.cc:673] Initialization of all EGL display types failed.
+[594947:0609/155725.025224:ERROR:ui/ozone/common/gl_ozone_egl.cc:26] GLDisplayEGL::Initialize failed.
+[594947:0609/155725.324967:ERROR:ui/gl/angle_platform_impl.cc:47] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+[594947:0609/155725.325200:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: Could not create a backing OpenGL context.
+[594947:0609/155725.326201:ERROR:ui/gl/gl_display.cc:638] eglInitialize OpenGL failed with error EGL_NOT_INITIALIZED, trying next display type
+[594947:0609/155725.339549:ERROR:ui/gl/angle_platform_impl.cc:47] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: Could not create a backing OpenGL context.
+[594947:0609/155725.339900:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: Could not create a backing OpenGL context.
+[594947:0609/155725.340079:ERROR:ui/gl/gl_display.cc:638] eglInitialize OpenGLES failed with error EGL_NOT_INITIALIZED
+[594947:0609/155725.340210:ERROR:ui/gl/gl_display.cc:673] Initialization of all EGL display types failed.
+[594947:0609/155725.340309:ERROR:ui/ozone/common/gl_ozone_egl.cc:26] GLDisplayEGL::Initialize failed.
+[594947:0609/155725.358046:ERROR:components/viz/service/main/viz_main_impl.cc:189] Exiting GPU process due to errors during initialization
