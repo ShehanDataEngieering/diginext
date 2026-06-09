@@ -61,9 +61,10 @@ const DATA_ROWS = [
   // Site Tools — Power Drill (1 unit)
   ['', 'Site Tools',           '1', 'Power Drill',   '1', 'PD-201', '', '01/06/2026', 'Battery replaced'],
 
-  // Office Use Items — Clipboard (no serial — quantity only, will be skipped
-  // by the serial-based reconciler but visible in the sheet for reference)
-  ['', 'Office Use Items',     '1', 'Clipboard',     '3', '',       '', '09/06/2026', '3 units on site'],
+  // Welfare — First Aid Kit (quantity-only — no serial numbers)
+  // The reconciler will create 4 anonymous item_units for this item at this
+  // project, and update initial_stock accordingly.
+  ['', 'Welfare',              '1', 'First Aid Kit', '4', '',       '', '09/06/2026', '4 kits on site'],
 ]
 
 // ── Build the worksheet ────────────────────────────────────────────────────
