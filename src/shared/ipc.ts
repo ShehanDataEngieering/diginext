@@ -25,9 +25,13 @@ export const IPC_CHANNELS = {
   dashboardRollup: 'dashboard:rollup',
 
   excelExportProject: 'excel:export-project',
+  excelImportProject: 'excel:import-project',
 
   photosImport: 'photos:import',
-  photosRead: 'photos:read'
+  photosRead: 'photos:read',
+
+  transfersList: 'transfers:list',
+  transfersByProject: 'transfers:by-project'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
@@ -146,4 +150,50 @@ export interface ExportProjectResult {
 // assume anything about its shape beyond "pass it back to look the photo up".
 export interface PhotoImportResult {
   reference: string
+}
+
+export interface Transfer {
+  id: number
+  date: string
+  itemId: number
+  serialId: string | null
+  qty: number
+  fromProjectId: number | null
+  toProjectId: number | null
+  transferredBy: string | null
+  authorizedBy: string | null
+  notes: string | null
+  status: string
+}
+
+export interface TransferInput {
+  date: string
+  itemId: number
+  serialId: string | null
+  qty: number
+  fromProjectId: number | null
+  toProjectId: number | null
+  transferredBy: string | null
+  authorizedBy: string | null
+  notes: string | null
+  status?: string
+}
+
+export interface ImportSummary {
+  projectId: number
+  projectName: string
+  importedAt: string
+  unitsAdded: number
+  unitsRemoved: number
+  transfersCreated: number
+  details: ImportDetail[]
+}
+
+export interface ImportDetail {
+  type: 'added' | 'removed' | 'transferred'
+  itemName: string
+  serialId: string | null
+  fromProject?: string
+  toProject?: string
+  notes?: string
 }

@@ -14,6 +14,20 @@ import { registerDataHandlers } from './ipc/dataHandlers'
 // for real use, so this sits at the very top of the entry point.
 config()
 
+// WSL does not support Linux namespace sandboxing (the zygote process that
+// Chrome uses to spawn sandboxed renderer/GPU/network children), so those
+// child processes immediately crash with "Failed to send GetTerminationStatus
+// message to zygote" → "GPU process isn't usable. Goodbye." (fatal).
+// --no-sandbox disables the namespace sandbox so processes can spawn normally.
+// disableHardwareAcceleration() stops ANGLE from trying to init OpenGL (which
+// also has no drivers in WSL), making Chromium fall back to SwiftShader.
+// Both must be set before app.whenReady(). Only applied on Linux so Windows
+// and macOS packaged builds are completely unaffected.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox')
+  app.disableHardwareAcceleration()
+}
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1280,
