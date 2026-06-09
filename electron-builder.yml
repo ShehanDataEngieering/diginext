@@ -19,3 +19,38 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+
+# macOS build — must be run *on* macOS (electron-builder shells out to native
+# tools like hdiutil for the .dmg, and the bundled better-sqlite3-multiple-
+# ciphers binary has to be compiled for the Mac's own CPU). Produces both a
+# .dmg installer (drag-to-Applications, what most people expect to double-
+# click) and a plain .zip of the .app (handy for quick re-testing without
+# mounting a disk image each time). `arch` covers both Apple Silicon (arm64)
+# and older Intel Macs (x64) from a single build pass.
+mac:
+  category: public.app-category.business
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  # No Apple Developer ID certificate is configured, so the build is
+  # unsigned/un-notarized — Gatekeeper will flag it as from an "unidentified
+  # developer" the first time it's opened. That's expected for an internal
+  # tool; see the README section this milestone adds for how to get past it
+  # (right-click → Open, or `xattr -cr` from Terminal). Hardened runtime is
+  # only meaningful for signed/notarized builds, so it's left off here.
+  hardenedRuntime: false
+dmg:
+  # Standard "drag the app onto the Applications shortcut" installer layout.
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
