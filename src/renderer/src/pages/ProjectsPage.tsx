@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Archive, Download, Pencil, Plus, RotateCcw } from 'lucide-react'
-import type { Project, ProjectInput } from '@shared/ipc'
+import { Archive, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
+import type { Project, ProjectInput, ImportSummary } from '@shared/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +37,9 @@ export function ProjectsPage(): React.JSX.Element {
   const [saving, setSaving] = useState(false)
   const [exportingId, setExportingId] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [dragging, setDragging] = useState(false)
 
   async function reload(): Promise<void> {
     try {
@@ -123,6 +126,30 @@ export function ProjectsPage(): React.JSX.Element {
     }
   }
 
+  async function handleImport(files: FileList | null): Promise<void> {
+    const file = files?.[0]
+    if (!file) return
+    setImporting(true)
+    setError(null)
+    setNotice(null)
+    setImportSummary(null)
+    try {
+      const sourcePath = window.api.photos.pathForFile(file)
+      const summary = await window.api.excel.importProject(sourcePath)
+      if (!summary) {
+        setError('This file is not a valid Diginext export (missing metadata sheet).')
+      } else {
+        setImportSummary(summary)
+        setNotice(`Imported "${summary.projectName}" — ${summary.transfersCreated} transfer(s) recorded.`)
+        await reload()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -140,6 +167,63 @@ export function ProjectsPage(): React.JSX.Element {
 
       {error && <p className="text-destructive text-sm">{error}</p>}
       {notice && <p className="text-sm text-emerald-600">{notice}</p>}
+
+      <div
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          void handleImport(event.dataTransfer.files)
+        }}
+        className={`flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm transition-colors ${
+          dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
+        }`}
+      >
+        <div className="text-muted-foreground/50 flex size-10 shrink-0 items-center justify-center rounded border border-dashed">
+          {importing ? (
+            <div className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <Upload className="size-5" />
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-muted-foreground">
+            {importing
+              ? 'Importing and reconciling…'
+              : 'Drag and drop a filled-in export sheet here to import transfers.'}
+          </p>
+        </div>
+      </div>
+
+      {importSummary && (
+        <div className="rounded-lg border bg-blue-50 p-4">
+          <h3 className="mb-2 font-semibold">Import Summary: {importSummary.projectName}</h3>
+          <ul className="space-y-1 text-sm">
+            <li>Units added: {importSummary.unitsAdded}</li>
+            <li>Units removed: {importSummary.unitsRemoved}</li>
+            <li>Transfers recorded: {importSummary.transfersCreated}</li>
+          </ul>
+          {importSummary.details.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm font-medium">View details</summary>
+              <ul className="mt-2 space-y-1 text-xs">
+                {importSummary.details.map((detail, i) => (
+                  <li key={i}>
+                    {detail.type === 'added' && `+ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                    {detail.type === 'removed' && `- ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                    {detail.type === 'transferred' &&
+                      `→ ${detail.itemName} (${detail.serialId ?? 'no serial'}) from ${detail.fromProject ?? 'unknown'}`}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
 
       <div className="rounded-xl border">
         <Table>

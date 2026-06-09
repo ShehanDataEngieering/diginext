@@ -4,6 +4,7 @@ import {
   BackupInfo,
   DashboardRollup,
   ExportProjectResult,
+  ImportSummary,
   IPC_CHANNELS,
   Item,
   ItemInput,
@@ -13,7 +14,8 @@ import {
   PhotoImportResult,
   Project,
   ProjectInput,
-  ProjectStatus
+  ProjectStatus,
+  Transfer
 } from '../shared/ipc'
 
 // Extended by later milestones with typed IPC calls (item/project CRUD, Excel
@@ -68,12 +70,15 @@ const api = {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
   },
   excel: {
-    // Builds the per-project workbook and writes it straight to a fixed,
-    // user-visible "Diginext Inventory Exports" folder under Documents (no
-    // save-as picker — see dataHandlers.ts for why), resolving with the path
-    // it landed at.
     exportProject: (projectId: number): Promise<ExportProjectResult> =>
-      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId)
+      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId),
+    importProject: (filePath: string): Promise<ImportSummary | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath)
+  },
+  transfers: {
+    list: (): Promise<Transfer[]> => ipcRenderer.invoke(IPC_CHANNELS.transfersList),
+    byProject: (projectId: number): Promise<Transfer[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.transfersByProject, projectId)
   },
   photos: {
     // Resolves a dropped `File` to its absolute filesystem path. Post-Electron

@@ -3,6 +3,7 @@ import type {
   BackupInfo,
   DashboardRollup,
   ExportProjectResult,
+  ImportSummary,
   Item,
   ItemInput,
   ItemUnitFilter,
@@ -11,7 +12,8 @@ import type {
   PhotoImportResult,
   Project,
   ProjectInput,
-  ProjectStatus
+  ProjectStatus,
+  Transfer
 } from '../shared/ipc'
 
 interface Api {
@@ -46,6 +48,11 @@ interface Api {
   }
   excel: {
     exportProject: (projectId: number) => Promise<ExportProjectResult>
+    importProject: (filePath: string) => Promise<ImportSummary | null>
+  }
+  transfers: {
+    list: () => Promise<Transfer[]>
+    byProject: (projectId: number) => Promise<Transfer[]>
   }
   photos: {
     pathForFile: (file: File) => string

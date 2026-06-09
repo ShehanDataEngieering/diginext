@@ -31,7 +31,9 @@ import {
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
+import { listTransfers, getTransfersByProject } from '../db/repositories/transfers'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
+import { importAndReconcile } from '../excel/importAndReconcile'
 import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
 
 // Exports land here rather than behind a save-as picker — see the handler
@@ -160,5 +162,16 @@ export function registerDataHandlers(db: Database.Database): void {
 
       return { filePath }
     }
+  )
+
+  // --- Excel import -----------------------------------------------------------
+  ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string) => {
+    return importAndReconcile(db, filePath)
+  })
+
+  // --- Transfers --------------------------------------------------------------
+  ipcMain.handle(IPC_CHANNELS.transfersList, () => listTransfers(db))
+  ipcMain.handle(IPC_CHANNELS.transfersByProject, (_event, projectId: number) =>
+    getTransfersByProject(db, projectId)
   )
 }
