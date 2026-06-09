@@ -1,0 +1,593 @@
+{
+  "export_metadata": {
+    "exported_at": "2026-06-09",
+    "scope": "All conversations, job-search focus",
+    "subject": "Shehan"
+  },
+  "job_search_conversations": [
+    {
+      "id": 1,
+      "title": "Swedish Tech Recruiter CV Review",
+      "date": "2026-03-23",
+      "urls": [
+        "https://claude.ai/chat/f607cbe1-b94a-42de-83b4-459d7d81cec1",
+        "https://claude.ai/chat/6cf6ecf8-2427-408b-a6c2-4a2bda50f798"
+      ],
+      "summary": "Shehan asked Claude to roleplay as a Swedish tech recruiter and hiring manager for a JavaScript role to provide a strict critique of his CV. Two versions exist (the second added market specificity).",
+      "recruiter_perspective": {
+        "first_10_seconds_flags": [
+          "Location: Gothenburg, not Stockholm",
+          "Work permit: EU Residence Permit but needs sponsorship",
+          "Gap: Active commercial experience stops at mid-2023 (~3 years ago)",
+          "Metrics: $500k to $600k monthly revenue boost looks too polished",
+          "Swedish: Beginner via SFI — quietly a no for most Swedish companies"
+        ]
+      },
+      "hiring_manager_perspective": {
+        "issues": [
+          "Thesis metric 40% reduction (50 to 30ms) — not a significant engineering achievement",
+          "Multiple technologies listed but only one job each — depth vs exposure unclear",
+          "Freelance = one client, 5 months, not production scale",
+          "Missing GitHub link credibility check"
+        ],
+        "verdict": {
+          "sweden": "6.5/10",
+          "poland_estonia_portugal": "7.5/10"
+        }
+      },
+      "second_review_flags": [
+        "Available from July 2026 — most pipelines run 4-8 weeks, skip for active headcount",
+        "Eligible to work across Europe with work permit — contradictory with EU Residence Permit",
+        "Gap (Aug 2023 - Oct 2025) not explained in summary",
+        "Returning to industry immediately upon graduation — 9 months post-grad, works against him",
+        "Thesis blurb parenthetical reads defensive — drop it",
+        "Single project in Key Projects looks thin"
+      ],
+      "outcome": "CV updated in PDF and Word. Conclusion: No in Sweden for cold applications. Three silent filters fire before recruiter reads properly."
+    },
+    {
+      "id": 2,
+      "title": "CV Review & Market-Specific Feedback",
+      "date": "2026-03-23",
+      "urls": [
+        "https://claude.ai/chat/68fb6c02-111b-4fdd-8a02-4519f695f305"
+      ],
+      "summary": "Fresh CV review across content/framing and structure/layout for all four target markets.",
+      "content_framing_issues": [
+        "Gap explanation is broken — three separate gaps visible, inline note in Education looks defensive",
+        "Fix: extend freelance end date to Present or add one-liner clarifying current status",
+        "Returning to industry immediately upon graduation — cut or rewrite",
+        "Thesis blurb parenthetical reads like justification — drop it",
+        "Single project in Key Projects — add another or fold CrownCut into experience",
+        "Permit line upfront placement is correct"
+      ],
+      "structure_issues": [
+        "Inline gap note in Education section looks patched",
+        "Summary too long — tighten to 3 sentences max",
+        "Section order is good overall"
+      ],
+      "market_assessments": [
+        {
+          "market": "Sweden",
+          "assessment": "Hardest — sponsorship flag, Stockholm preference, gap scrutiny highest"
+        },
+        {
+          "market": "Poland",
+          "assessment": "7.5/10 — less gap scrutiny, appetite for international candidates"
+        },
+        {
+          "market": "Estonia",
+          "assessment": "Similar to Poland — startup culture more tolerant of non-linear paths"
+        },
+        {
+          "market": "Portugal",
+          "assessment": "Reasonable — English-first, lower salary expectations"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Crew4You Interview Opportunity",
+      "date": "2026-03-15",
+      "urls": [
+        "https://claude.ai/chat/bc173dc4-7203-4941-bb43-f94c9b1546a0"
+      ],
+      "summary": "Email from Malin at Crew4You about a video screening call and technical interview Wednesday at 18:00. Shehan flagged it felt odd.",
+      "assessment": {
+        "concern": "Crew4You is a hospitality/events/construction staffing agency — not tech.",
+        "advice": "Do not commit to the video call until the actual employer is confirmed"
+      },
+      "action_items": [
+        "Reply to Malin confirming video call availability",
+        "Ask: Which company? What exact role and tech stack? Who is the hiring manager?",
+        "For video call: quiet environment, relaxed, ask questions, show genuine interest",
+        "Before Wednesday technical: ask format (OOP? Algorithms? Framework-specific?)"
+      ],
+      "outcome": "Not confirmed — conversation ended at verification stage."
+    },
+    {
+      "id": 4,
+      "title": "Starting a SaaS vs Job Hunting",
+      "date": "2026-04-28",
+      "urls": [
+        "https://claude.ai/chat/295b6889-c994-4a3b-8f69-3e85c4999524"
+      ],
+      "summary": "Shehan (1.5 years active job search, low response + failed interviews) raised switching to SaaS. Claude challenged it honestly, then generated viable ideas.",
+      "claudes_position": [
+        "Switching from hard problem (getting hired) to harder one (getting paying customers) with no income is not a fix",
+        "Burnout does not go away by changing the activity",
+        "Root causes: silent sponsorship filtering, CV targeting, interview fundamentals gap"
+      ],
+      "saas_ideas_generated": [
+        {
+          "rank": 1,
+          "idea": "Productize the gemstone classifier",
+          "description": "CrownCut Gems image classifier to SaaS for jewelry/e-commerce stores",
+          "pricing": "$29-49/month",
+          "risk": "Lowest — code already written, real client, clear customer",
+          "recommended": true
+        },
+        {
+          "rank": 2,
+          "idea": "Webhook testing and debugging tool",
+          "description": "Capture/replay/log webhook events for dev teams",
+          "pricing": "$19-39/month",
+          "build_time": "4-6 weeks",
+          "recommended": false
+        },
+        {
+          "rank": 3,
+          "idea": "AI mock interview platform",
+          "description": "Expand v1 already built; add system design + behavioral + AI feedback",
+          "pricing": "$9-15/month",
+          "recommended": false
+        }
+      ],
+      "minut_internship_pivot": "After Minut rejection, Shehan asked Claude to draft a reply to Katarina asking about an internship. Email drafted."
+    },
+    {
+      "id": 5,
+      "title": "Handling Rejection Emails — Minut",
+      "date": "2026-04-29",
+      "urls": [
+        "https://claude.ai/chat/a54aab95-2b78-425a-ae71-65786d4ec988"
+      ],
+      "summary": "Rejection email from Minut — near-exact stack match. No actionable feedback provided.",
+      "rejection_context": {
+        "company": "Minut",
+        "recruiter": "Katarina",
+        "reason_given": "Experience does not align (standard template)",
+        "actual_feedback": null,
+        "jd_stack_match": "Near perfect — Node.js, TypeScript, AWS, Docker",
+        "swedish_required": false,
+        "identified_gap": "Payments/subscriptions experience — possible reason, unconfirmed"
+      },
+      "emotional_checkin": {
+        "shehan_said": [
+          "Giving up give me peace",
+          "Do you think I am a slave"
+        ],
+        "context": "Heading to a Moving Talent shift, last day of CEORL-HNS. Confirmed talking about job search, not something more serious."
+      },
+      "outcome": "No reply to Minut. Moved on."
+    },
+    {
+      "id": 6,
+      "title": "Master's Degree vs PhD — Visa Strategy",
+      "date": "2026-04-29",
+      "urls": [
+        "https://claude.ai/chat/7061aaa3-43f3-4b95-8c87-454eb2e7ecd7"
+      ],
+      "summary": "Shehan asked whether another master or PhD would help. Real motivations: transition into Applied AI and extend EU stay.",
+      "assessment": {
+        "second_masters": {
+          "verdict": "No",
+          "reasons": [
+            "Applied AI roles value portfolio and Python/ML skills, not credentials",
+            "Delays job search by 1-2 years at significant cost"
+          ]
+        },
+        "phd_as_visa_strategy": {
+          "verdict": "No",
+          "reasons": [
+            "4-5 years of hard research work — Shehan self-described as not an academic guy",
+            "Dropping out mid-PhD can hurt visa status worse",
+            "Competitive, requires genuine research passion"
+          ]
+        },
+        "actual_visa_path": {
+          "permit": "Post-study job-seeking permit",
+          "duration_months": 12,
+          "goal": "Land a role before it expires, ideally in EU country not requiring sponsorship"
+        }
+      },
+      "job_search_state_april_2026": {
+        "applications_sent_last_month": "60+",
+        "problems": [
+          "Low response rate",
+          "Failing interviews"
+        ],
+        "thesis_deadline": "2026-05-18"
+      },
+      "recommended_plan": {
+        "immediate": "Thesis-first until May 18",
+        "post_may_18": [
+          "Fix CV targeting — fewer, better-matched applications",
+          "Two weeks focused interview prep (algorithms + system design)",
+          "Hit Poland and Estonia harder"
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Evaluating Candidate for Next Interview Round — Minut",
+      "date": "2026-04-24",
+      "urls": [
+        "https://claude.ai/chat/d9e99f7c-9623-40cd-8e6b-02503829c05e"
+      ],
+      "summary": "Shehan asked Claude to roleplay as a recruiter evaluating his own Minut HR interview transcript.",
+      "evaluation": {
+        "technical_fit": {
+          "rating": "Strong",
+          "strengths": [
+            "Node.js + TypeScript: primary stack, used at scale",
+            "MongoDB + PostgreSQL: both with real production context",
+            "AWS + Kubernetes: mentioned concretely (MEDDIO deployment)",
+            "Microservices + event-driven: Grubtech migration story directly relevant",
+            "React: confirmed"
+          ],
+          "gaps": [
+            "Python — never mentioned, JD lists it",
+            "Edge AI/ML — acknowledged interest but no hands-on experience"
+          ]
+        },
+        "communication": {
+          "rating": "Acceptable",
+          "issues": [
+            "Garbled/mispronounced names throughout under pressure",
+            "Some incomplete sentences under pressure"
+          ],
+          "strengths": [
+            "Disagreement answer was strongest — concrete, written proposal, outcome-driven"
+          ]
+        },
+        "cultural_fit": {
+          "rating": "Good",
+          "reasons": [
+            "End-to-end ownership matches Minut autonomous team model",
+            "CrownCut Gems solo project shows Product Manager mindset JD asks for",
+            "Constructive pushback with data shows maturity"
+          ]
+        },
+        "visa": {
+          "rating": "Not a problem",
+          "reason": "Swedish residence permit, Gothenburg-based, Minut is Malmo — no sponsorship needed"
+        },
+        "verdict": "Yes, move forward. Probe in HR round: why no permanent role yet given 4 years experience."
+      }
+    },
+    {
+      "id": 8,
+      "title": "Feedback on Julia Communication at Redpine",
+      "date": "2026-05-13",
+      "urls": [
+        "https://claude.ai/chat/0561f57a-1673-40b8-a88d-7a57bb18f873"
+      ],
+      "summary": "Shehan shared LinkedIn thread with Julia Nilsson (Chief of Staff, Redpine) following the ORBIT meetup. Reached out about Applied AI Engineer role.",
+      "thread_assessment": {
+        "score": "8/10",
+        "strengths": [
+          "Opening was warm and human, not performative",
+          "The boring but real stuff — confident self-aware framing",
+          "Building RAG system to understand the space — initiative framing",
+          "Availability reply: clean, flexible, not a pushover"
+        ],
+        "minor_issues": [
+          "Missing punctuation in Sunday message",
+          "Would you be up for a quick call sometime — sometime weakens it, drop it",
+          "Exclamation mark at end reads slightly eager, use a period"
+        ]
+      },
+      "followup_timing": {
+        "situation": "Julia said Wednesday or Friday for a call with David",
+        "shehan_action": "Sent light nudge on expected Wednesday",
+        "verdict": "Perfectly judged",
+        "next_nudge_advice": "Friday morning at earliest if no reply by end of Wednesday"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Redpine — Context Analysis, Fahad Call, Hackathon",
+      "date": "2026-05-20",
+      "urls": [
+        "https://claude.ai/chat/2b9e0a48-c525-4b02-8f80-0da406da0486"
+      ],
+      "summary": "Most detailed and high-stakes job search conversation. Two parallel tracks: managing Redpine outreach and the Aris Machina x Redpine hackathon on May 26.",
+      "key_people": [
+        {
+          "name": "Julia Nilsson",
+          "role": "Chief of Staff, Redpine",
+          "status": "Met at ORBIT; connected professionally"
+        },
+        {
+          "name": "Fahad Ali",
+          "role": "Founding Engineer, Redpine",
+          "status": "Technical call completed post-May 14"
+        },
+        {
+          "name": "David",
+          "role": "Co-founder, handles recruitment",
+          "status": "Not yet contacted"
+        }
+      ],
+      "key_decisions": {
+        "julia_vs_fahad": "Fahad is now the stronger connection after technical call. Do not chase Julia further on the job thread.",
+        "hackathon": {
+          "event": "Aris Machina x Redpine Hackathon",
+          "date": "2026-05-26",
+          "shehan_status": "On waitlist",
+          "assessment": "Exceptional — Redpine co-hosting, prize is fast-tracked interview, Fahad already knows him",
+          "message_drafted": "Hey Fahad, just saw the Aris Machina x Redpine hackathon — signed up for the waitlist. Looks like exactly the kind of thing I want to be building at. Hope to see you there!"
+        }
+      },
+      "fahad_call_debrief": {
+        "strong_moments": [
+          "Voyage AI embedding justification",
+          "Human-in-the-loop question",
+          "Cost optimization reasoning"
+        ],
+        "key_weakness": "Voluntarily disclosed lack of production AI engineering experience unprompted — avoid in future calls",
+        "other_flag": "Applied for both full-time AI Engineer AND internship simultaneously — could read as uncertainty about level"
+      },
+      "shehan_state": "Expressed genuine frustration throughout. Claude acknowledged difficulty directly without minimizing."
+    },
+    {
+      "id": 10,
+      "title": "AI Applications in Accessible Industries / SaaS Verticals",
+      "date": "2026-06-07",
+      "urls": [
+        "https://claude.ai/chat/560fef7b-0d20-45b8-816d-9fe37e8cf038"
+      ],
+      "summary": "Shehan exploring SaaS product directions using existing AI stack from Vidda compliance platform.",
+      "existing_stack": [
+        "RAG pipelines",
+        "Anthropic SDK",
+        "Hybrid BM25/vector search",
+        "pgvector",
+        "Voyage AI embeddings",
+        "Vidda compliance platform"
+      ],
+      "verticals_recommended": [
+        {
+          "vertical": "Legal / Compliance",
+          "reason": "Document-heavy; RAG stack directly reusable from Vidda",
+          "fit": "Primary"
+        },
+        {
+          "vertical": "Accounting / Bookkeeping (SMB)",
+          "reason": "Clear pain, recurring need, low technical barrier",
+          "fit": "Strong"
+        },
+        {
+          "vertical": "HR / Recruitment",
+          "reason": "Document parsing + Q&A, structured output",
+          "fit": "Primary"
+        },
+        {
+          "vertical": "Healthcare Admin (non-clinical)",
+          "reason": "Document workflows, insurance forms, scheduling",
+          "fit": "Good"
+        },
+        {
+          "vertical": "Real Estate",
+          "reason": "Lease/contract analysis, document-heavy",
+          "fit": "Moderate"
+        }
+      ],
+      "primary_recommendation": "Legal or HR verticals — existing RAG stack from Vidda maps directly, fastest path to shipped MVP."
+    }
+  ],
+  "non_job_search_chats": [
+    {
+      "date": "2026-03-23",
+      "title": "AI Agent vs MCP",
+      "topic": "Technical concepts — RAG, agents, MCP"
+    },
+    {
+      "date": "2026-05-20",
+      "title": "RAG vs Traditional ML — Career Implications",
+      "topic": "AI/ML learning"
+    },
+    {
+      "date": "2026-05-20",
+      "title": "PDF Formatting for Dual-Screen Presenting",
+      "topic": "Vidda hackathon teleprompter PDF"
+    },
+    {
+      "date": "2026-05-20",
+      "title": "Analyzing Opponent Report Weaknesses",
+      "topic": "Thesis opposition seminar"
+    },
+    {
+      "date": "2026-05-20",
+      "title": "Using OpenRouter Credits with Claude Code",
+      "topic": "Claude Code config"
+    },
+    {
+      "date": "2026-05-21",
+      "title": "RAG Systems vs Traditional ML Training",
+      "topic": "AI/ML learning"
+    },
+    {
+      "date": "2026-05-22",
+      "title": "Converting MOV to MP4 on Windows 11",
+      "topic": "Tech utility"
+    },
+    {
+      "date": "2026-05-26",
+      "title": "Presentation Layout — Redpine/Protos Hackathon Pitch",
+      "topic": "Hackathon PPTX"
+    },
+    {
+      "date": "2026-05-27",
+      "title": "Project End Procedures & Salary Payment",
+      "topic": "Moving Talent salary trace"
+    },
+    {
+      "date": "2026-05-29",
+      "title": "Updating Portfolio Using Friends Example",
+      "topic": "e-Portfolio Excel"
+    },
+    {
+      "date": "2026-05-31",
+      "title": "One-Hour OR Mid-Exam MCQ Paper",
+      "topic": "MAN 103 exam prep"
+    },
+    {
+      "date": "2026-05-31",
+      "title": "(empty chat)",
+      "topic": null
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Air Quality Quantitative Analysis",
+      "topic": "Research proposal"
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Reflection on Qualitative Research Methods",
+      "topic": "LiU coursework"
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Air Quality & Weather Pattern Research",
+      "topic": "Thesis email to Joy"
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Missed Seminar — Email to Pelle",
+      "topic": "LiU email"
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Pure Math Mid Exam Preparation",
+      "topic": "Discrete Mathematics"
+    },
+    {
+      "date": "2026-06-05",
+      "title": "Mid-Exam Revision Notes — MAN 103",
+      "topic": "LP exam prep PDF"
+    },
+    {
+      "date": "2026-06-07",
+      "title": "Improving UI Design — Inventory Manager",
+      "topic": "React/Tailwind macOS UI"
+    }
+  ],
+  "cross_conversation_themes": {
+    "cv_evolution": [
+      {
+        "issue": "Misleading visa language",
+        "identified": "2026-03",
+        "status": "Fixed"
+      },
+      {
+        "issue": "Gap explanation missing from summary",
+        "identified": "2026-03",
+        "status": "Fixed"
+      },
+      {
+        "issue": "Available from July 2026 killing Sweden applications",
+        "identified": "2026-03",
+        "status": "Fixed"
+      },
+      {
+        "issue": "Weak metrics not defensible under scrutiny",
+        "identified": "2026-03",
+        "status": "Partially addressed"
+      },
+      {
+        "issue": "CrownCut Gems framing as freelance vs project",
+        "identified": "2026-03",
+        "status": "Adjusted"
+      },
+      {
+        "issue": "Returning to industry immediately — stale line",
+        "identified": "2026-03",
+        "status": "Cut"
+      }
+    ],
+    "job_search_timeline": [
+      {
+        "period": "Feb 2026",
+        "applications": "60+ in a month",
+        "status": "Low response + failed interviews"
+      },
+      {
+        "period": "Apr 2026",
+        "applications": "Ongoing",
+        "status": "Minut rejection, Crew4You odd lead"
+      },
+      {
+        "period": "May 2026",
+        "applications": "Focused on Redpine",
+        "status": "Hackathon + direct relationship building"
+      },
+      {
+        "period": "Jun 2026",
+        "applications": "SaaS ideation parallel track",
+        "status": "AI verticals exploration"
+      }
+    ],
+    "target_markets": [
+      {
+        "market": "Poland",
+        "priority": "Primary"
+      },
+      {
+        "market": "Estonia",
+        "priority": "Primary",
+        "note": "Startup visa potential"
+      },
+      {
+        "market": "Portugal",
+        "priority": "Secondary"
+      },
+      {
+        "market": "Romania",
+        "priority": "Secondary"
+      },
+      {
+        "market": "Sweden",
+        "priority": "Deprioritized",
+        "note": "Sponsorship flag — cold apps largely avoided"
+      }
+    ],
+    "key_rejections": [
+      {
+        "company": "Minut",
+        "type": "Gothenburg IoT",
+        "reason": "Experience does not align (zero actual feedback)",
+        "date": "2026-04"
+      },
+      {
+        "company": "Techquity",
+        "type": "Unknown",
+        "reason": "Rejected but noted positive impressions; led to internship inquiry",
+        "date": "Unknown"
+      },
+      {
+        "company": "Bolt",
+        "type": "Tech",
+        "reason": "Failed technical interview — prior confidence hit",
+        "date": "Pre-2026"
+      },
+      {
+        "company": "Chas Academy Hackathon (Vidda)",
+        "type": "Hackathon",
+        "reason": "Not selected for finals",
+        "date": "2026-05"
+      }
+    ]
+  }
+}
