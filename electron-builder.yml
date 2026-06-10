@@ -10,6 +10,10 @@ files:
     to: .env
   - from: .env
     to: .env
+  - from: node_modules/better-sqlite3-multiple-ciphers
+    to: node_modules/better-sqlite3-multiple-ciphers
+  - from: node_modules/better-sqlite3-multiple-ciphers/build
+    to: node_modules/better-sqlite3-multiple-ciphers/build
 win:
   target:
     - target: portable
@@ -41,6 +45,16 @@ mac:
   # (right-click → Open, or `xattr -cr` from Terminal). Hardened runtime is
   # only meaningful for signed/notarized builds, so it's left off here.
   hardenedRuntime: false
+  # Enable nodeIntegration for better native module support
+  nodeIntegration: true
+  # Include extra resources for native modules
+  extraResources:
+    - from: node_modules/better-sqlite3-multiple-ciphers/build
+      to: build
+      filter: "**/*"
+    - from: node_modules/better-sqlite3-multiple-ciphers/lib
+      to: lib
+      filter: "**/*"
 dmg:
   # Standard "drag the app onto the Applications shortcut" installer layout.
   contents:
