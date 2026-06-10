@@ -22,9 +22,9 @@ import {
 // export/import) — keeps the renderer free of direct Node/Electron access.
 const api = {
   auth: {
-    // Sends the Clerk session JWT to the main process for verification.
+    // Sends the Supabase access token to the main process for verification.
     // Returns true only if the main process independently confirms the
-    // session is valid — the renderer's own Clerk state is not trusted.
+    // session is valid — the renderer's own auth state is not trusted.
     verifySession: (token: string): Promise<boolean> =>
       ipcRenderer.invoke(IPC_CHANNELS.authVerifySession, token)
   },

@@ -1,6 +1,4 @@
-// Data access for the `items` table (the catalog of item *types* — see
-// item_units for individually tracked physical units).
-import type Database from 'better-sqlite3-multiple-ciphers'
+import type { DatabaseAdapter } from '../adapter'
 import type { Item, ItemInput } from '../../../shared/ipc'
 
 interface ItemRow {
@@ -14,38 +12,29 @@ function toItem(row: ItemRow): Item {
   return { id: row.id, category: row.category, name: row.name, initialStock: row.initial_stock }
 }
 
-export function listItems(db: Database.Database): Item[] {
-  const rows = db.prepare('SELECT * FROM items ORDER BY category, name').all() as ItemRow[]
-  return rows.map(toItem)
+export async function listItems(db: DatabaseAdapter): Promise<Item[]> {
+  const { rows } = await db.query('SELECT * FROM items ORDER BY category, name')
+  return (rows as unknown as ItemRow[]).map(toItem)
 }
 
-export function createItem(db: Database.Database, input: ItemInput): Item {
-  const result = db
-    .prepare('INSERT INTO items (category, name, initial_stock) VALUES (?, ?, ?)')
-    .run(input.category, input.name, input.initialStock)
-
-  const row = db.prepare('SELECT * FROM items WHERE id = ?').get(result.lastInsertRowid) as ItemRow
-  return toItem(row)
-}
-
-export function updateItem(db: Database.Database, id: number, input: ItemInput): Item {
-  db.prepare('UPDATE items SET category = ?, name = ?, initial_stock = ? WHERE id = ?').run(
-    input.category,
-    input.name,
-    input.initialStock,
-    id
+export async function createItem(db: DatabaseAdapter, input: ItemInput): Promise<Item> {
+  const result = await db.query(
+    'INSERT INTO items (category, name, initial_stock) VALUES (?, ?, ?) RETURNING *',
+    [input.category, input.name, input.initialStock]
   )
-
-  const row = db.prepare('SELECT * FROM items WHERE id = ?').get(id) as ItemRow | undefined
-  if (!row) throw new Error(`Item ${id} not found`)
-  return toItem(row)
+  return toItem(result.rows[0] as unknown as ItemRow)
 }
 
-// Deleting an item type only makes sense when no physical units of it exist
-// (item_units.item_id is ON DELETE RESTRICT) — SQLite will throw a foreign
-// key constraint error here, which the IPC layer surfaces to the renderer as
-// a clear "remove its units first" message rather than silently cascading
-// and losing unit history.
-export function deleteItem(db: Database.Database, id: number): void {
-  db.prepare('DELETE FROM items WHERE id = ?').run(id)
+export async function updateItem(db: DatabaseAdapter, id: number, input: ItemInput): Promise<Item> {
+  await db.query(
+    'UPDATE items SET category = ?, name = ?, initial_stock = ? WHERE id = ?',
+    [input.category, input.name, input.initialStock, id]
+  )
+  const row = await db.queryOne('SELECT * FROM items WHERE id = ?', [id])
+  if (!row) throw new Error(`Item ${id} not found`)
+  return toItem(row as unknown as ItemRow)
+}
+
+export async function deleteItem(db: DatabaseAdapter, id: number): Promise<void> {
+  await db.query('DELETE FROM items WHERE id = ?', [id])
 }

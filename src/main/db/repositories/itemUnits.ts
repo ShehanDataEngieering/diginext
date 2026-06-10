@@ -1,7 +1,4 @@
-// Data access for `item_units` — the source of truth for "how many of item X
-// are at project Y" (see plan). Reads are joined with items/projects so the
-// renderer's table can show names directly without extra round-trips.
-import type Database from 'better-sqlite3-multiple-ciphers'
+import type { DatabaseAdapter } from '../adapter'
 import type { ItemUnit, ItemUnitFilter, ItemUnitInput, ItemUnitWithDetails, UnitStatus } from '../../../shared/ipc'
 
 interface ItemUnitRow {
@@ -54,18 +51,12 @@ const SELECT_WITH_DETAILS = `
   LEFT JOIN projects p ON p.id = u.assigned_project_id
 `
 
-// Single-record lookup — used by the data handlers to compare a unit's
-// previous `photoEvidenceRef` against an incoming update/delete so the
-// managed photo store can clean up files that are no longer referenced
-// (see photoStore.ts's `deleteManagedPhoto`).
-export function getItemUnitById(db: Database.Database, id: number): ItemUnitWithDetails | null {
-  const row = db.prepare(`${SELECT_WITH_DETAILS} WHERE u.id = ?`).get(id) as
-    | ItemUnitWithDetailsRow
-    | undefined
-  return row ? toItemUnitWithDetails(row) : null
+export async function getItemUnitById(db: DatabaseAdapter, id: number): Promise<ItemUnitWithDetails | null> {
+  const row = await db.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
+  return row ? toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow) : null
 }
 
-export function listItemUnits(db: Database.Database, filter?: ItemUnitFilter): ItemUnitWithDetails[] {
+export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter): Promise<ItemUnitWithDetails[]> {
   const clauses: string[] = []
   const params: (number | null)[] = []
 
@@ -83,19 +74,18 @@ export function listItemUnits(db: Database.Database, filter?: ItemUnitFilter): I
   }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
-  const rows = db
-    .prepare(`${SELECT_WITH_DETAILS} ${where} ORDER BY i.category, i.name, u.serial_id`)
-    .all(...params) as ItemUnitWithDetailsRow[]
-  return rows.map(toItemUnitWithDetails)
+  const { rows } = await db.query(
+    `${SELECT_WITH_DETAILS} ${where} ORDER BY i.category, i.name, u.serial_id`,
+    params
+  )
+  return (rows as unknown as ItemUnitWithDetailsRow[]).map(toItemUnitWithDetails)
 }
 
-export function createItemUnit(db: Database.Database, input: ItemUnitInput): ItemUnitWithDetails {
-  const result = db
-    .prepare(
-      `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+export async function createItemUnit(db: DatabaseAdapter, input: ItemUnitInput): Promise<ItemUnitWithDetails> {
+  const result = await db.query(
+    `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref)
+     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
       input.itemId,
       input.serialId,
       input.assignedProjectId,
@@ -103,42 +93,41 @@ export function createItemUnit(db: Database.Database, input: ItemUnitInput): Ite
       input.remarks,
       input.status,
       input.photoEvidenceRef
-    )
-
-  const row = db
-    .prepare(`${SELECT_WITH_DETAILS} WHERE u.id = ?`)
-    .get(result.lastInsertRowid) as ItemUnitWithDetailsRow
-  return toItemUnitWithDetails(row)
+    ]
+  )
+  const row = await db.queryOne(
+    `${SELECT_WITH_DETAILS} WHERE u.id = ?`,
+    [result.lastInsertRowid]
+  )
+  return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow)
 }
 
-export function updateItemUnit(
-  db: Database.Database,
+export async function updateItemUnit(
+  db: DatabaseAdapter,
   id: number,
   input: ItemUnitInput
-): ItemUnitWithDetails {
-  db.prepare(
+): Promise<ItemUnitWithDetails> {
+  await db.query(
     `UPDATE item_units
      SET item_id = ?, serial_id = ?, assigned_project_id = ?, audit_date = ?,
          remarks = ?, status = ?, photo_evidence_ref = ?
-     WHERE id = ?`
-  ).run(
-    input.itemId,
-    input.serialId,
-    input.assignedProjectId,
-    input.auditDate,
-    input.remarks,
-    input.status,
-    input.photoEvidenceRef,
-    id
+     WHERE id = ?`,
+    [
+      input.itemId,
+      input.serialId,
+      input.assignedProjectId,
+      input.auditDate,
+      input.remarks,
+      input.status,
+      input.photoEvidenceRef,
+      id
+    ]
   )
-
-  const row = db.prepare(`${SELECT_WITH_DETAILS} WHERE u.id = ?`).get(id) as
-    | ItemUnitWithDetailsRow
-    | undefined
+  const row = await db.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
   if (!row) throw new Error(`Item unit ${id} not found`)
-  return toItemUnitWithDetails(row)
+  return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow)
 }
 
-export function deleteItemUnit(db: Database.Database, id: number): void {
-  db.prepare('DELETE FROM item_units WHERE id = ?').run(id)
+export async function deleteItemUnit(db: DatabaseAdapter, id: number): Promise<void> {
+  await db.query('DELETE FROM item_units WHERE id = ?', [id])
 }

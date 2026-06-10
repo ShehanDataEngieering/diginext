@@ -1,24 +1,20 @@
 appId: com.diginext.inventory
-productName: Inventory Manager
+productName: InventoryManager
 directories:
   buildResources: resources
   output: release
 files:
   - out/**/*
   - package.json
-# better-sqlite3-multiple-ciphers ships a compiled .node binary — those can't
-# run from inside an asar archive, so they must be unpacked to plain disk
-# alongside it at install time.
-asarUnpack:
-  - '**/better-sqlite3-multiple-ciphers/**/*'
+  - from: .env
+    to: .env
+  - from: .env
+    to: .env
 win:
   target:
-    - target: nsis
+    - target: portable
       arch:
         - x64
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
 
 # macOS build — must be run *on* macOS (electron-builder shells out to native
 # tools like hdiutil for the .dmg, and the bundled better-sqlite3-multiple-

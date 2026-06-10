@@ -1,11 +1,3 @@
-import { createClerkClient, verifyToken } from '@clerk/backend'
-
-// Belt-and-suspenders access control: Clerk's "Restricted" sign-up mode keeps
-// strangers from creating accounts at all, but the email allowlist below is
-// what actually decides who gets into *this* app — and it's free (Clerk's own
-// allowlist add-on requires a paid plan). Configure it via ALLOWED_EMAILS in
-// .env as a comma-separated list, e.g. "alice@example.com,bob@example.com".
-// Comparison is case-insensitive since email providers treat case loosely.
 function getAllowedEmails(): string[] {
   return (process.env.ALLOWED_EMAILS ?? '')
     .split(',')
@@ -13,41 +5,47 @@ function getAllowedEmails(): string[] {
     .filter(Boolean)
 }
 
-// Re-checks the session JWT against Clerk's servers independently of whatever
-// the renderer claims about its own sign-in state — a compromised renderer
-// could fake a "signed in" UI, but it can't forge a token that passes this.
-//
-// Both secrets are read lazily (not at module load) because dotenv's config()
-// runs at the top of src/main/index.ts, and ES module imports are hoisted
-// above it — reading process.env at import time would see an empty value.
 export async function verifySession(token: string): Promise<boolean> {
   if (!token) return false
 
-  const secretKey = process.env.CLERK_SECRET_KEY
-  if (!secretKey) {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      'CLERK_SECRET_KEY is not set. Copy .env.example to .env and fill in your Clerk keys.'
+      'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env for session verification.'
     )
   }
 
   try {
-    const claims = await verifyToken(token, { secretKey })
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: serviceRoleKey
+      }
+    })
 
-    const allowedEmails = getAllowedEmails()
-    if (allowedEmails.length === 0) {
-      // No allowlist configured — fall back to "any verified Clerk session is
-      // trusted". Misconfiguration-safe default would be to lock everyone out,
-      // but that would brick a fresh setup before .env is filled in; instead
-      // we rely on Clerk's dashboard restrictions in that case.
-      return true
+    console.log('[verifySession] Response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.log('[verifySession] Error response:', errorText)
+      return false
     }
 
-    const clerk = createClerkClient({ secretKey })
-    const user = await clerk.users.getUser(claims.sub)
-    const email = user.primaryEmailAddress?.emailAddress?.toLowerCase()
+    const user = (await response.json()) as { email?: string }
+    console.log('[verifySession] User email:', user.email)
+    const email = user.email?.toLowerCase()
 
-    return !!email && allowedEmails.includes(email)
-  } catch {
+    const allowedEmails = getAllowedEmails()
+    console.log('[verifySession] Allowed emails:', allowedEmails)
+    console.log('[verifySession] Checking email:', email)
+    if (allowedEmails.length === 0) return true
+
+    const result = !!email && allowedEmails.includes(email)
+    console.log('[verifySession] Result:', result)
+    return result
+  } catch (err) {
+    console.log('[verifySession] Exception:', err)
     return false
   }
 }

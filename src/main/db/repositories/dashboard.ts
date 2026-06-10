@@ -1,9 +1,4 @@
-// Computes the live "Main Inventory" rollup — per item, how many units sit in
-// each active project vs. unassigned ("available") — directly from
-// `item_units`. This is the normalized replacement for the spreadsheet's
-// manually-maintained per-project allocation columns (see plan): the numbers
-// can never drift out of sync with reality because they're derived, not typed in.
-import type Database from 'better-sqlite3-multiple-ciphers'
+import type { DatabaseAdapter } from '../adapter'
 import type { DashboardRollup, DashboardRow } from '../../../shared/ipc'
 
 interface ItemRow {
@@ -19,26 +14,22 @@ interface CountRow {
   count: number
 }
 
-export function getDashboardRollup(db: Database.Database): DashboardRollup {
-  // Only active projects get their own column — completed projects'
-  // historical units still count toward an item's total, just not broken
-  // out individually (mirrors how the old spreadsheet retired project sheets).
-  const projects = db
-    .prepare("SELECT id, name FROM projects WHERE status = 'active' ORDER BY name")
-    .all() as { id: number; name: string }[]
+export async function getDashboardRollup(db: DatabaseAdapter): Promise<DashboardRollup> {
+  const { rows: projectRows } = await db.query(
+    "SELECT id, name FROM projects WHERE status = 'active' ORDER BY name"
+  )
+  const projects = projectRows as { id: number; name: string }[]
 
-  const items = db.prepare('SELECT * FROM items ORDER BY category, name').all() as ItemRow[]
+  const { rows: itemRows } = await db.query('SELECT * FROM items ORDER BY category, name')
+  const items = itemRows as unknown as ItemRow[]
 
-  const counts = db
-    .prepare(
-      `SELECT item_id, assigned_project_id, COUNT(*) AS count
-       FROM item_units
-       GROUP BY item_id, assigned_project_id`
-    )
-    .all() as CountRow[]
+  const { rows: countRows } = await db.query(
+    `SELECT item_id, assigned_project_id, COUNT(*) AS count
+     FROM item_units
+     GROUP BY item_id, assigned_project_id`
+  )
+  const counts = countRows as unknown as CountRow[]
 
-  // itemId -> (projectId-or-null -> count), built once so each item's row
-  // below is just map lookups rather than N additional queries.
   const countsByItem = new Map<number, Map<number | null, number>>()
   for (const { item_id, assigned_project_id, count } of counts) {
     let perProject = countsByItem.get(item_id)
@@ -62,9 +53,6 @@ export function getDashboardRollup(db: Database.Database): DashboardRollup {
         totalUnits += count
         if (projectId === null) available += count
         else if (activeProjectIds.has(projectId)) countsByProjectId[projectId] = count
-        // Units still tagged to a now-completed project count toward the
-        // total (the physical item still exists somewhere) but don't get
-        // their own column — see the projects query comment above.
       }
     }
 

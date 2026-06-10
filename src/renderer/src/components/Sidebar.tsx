@@ -1,7 +1,7 @@
 import { Boxes, Gauge, FolderKanban, Package, Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@shared/ipc'
-import { useAuth } from '@clerk/clerk-react'
+import { supabase } from '@/auth/supabaseClient'
 
 export type ViewTab = 'dashboard' | 'items' | 'projects' | 'item-units' | 'settings' | 'transfers' | 'handovers'
 
@@ -101,7 +101,6 @@ export function Sidebar({
   onSelectProject,
   onSelectCategory
 }: SidebarProps): React.JSX.Element {
-  const { signOut } = useAuth()
   const activeProjects = projects.filter((p) => p.status === 'active')
 
   return (
@@ -122,7 +121,7 @@ export function Sidebar({
 
       <div className="mt-auto p-2">
         <button
-          onClick={() => signOut()}
+          onClick={() => supabase.auth.signOut()}
           className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-gray-500 hover:bg-gray-200"
         >
           <LogOut size={15} />

@@ -1,24 +1,18 @@
-import type Database from 'better-sqlite3-multiple-ciphers'
+import type { DatabaseAdapter } from '../adapter'
 
 export interface Migration {
   version: number
   name: string
-  up: (db: Database.Database) => void
+  up: (db: DatabaseAdapter) => Promise<void>
 }
 
-// Each migration runs exactly once (tracked in schema_migrations — see
-// runMigrations in ../connection.ts), in ascending version order, inside its
-// own transaction. Add new migrations by appending to this array; never edit
-// or remove an already-released one — write a follow-up migration instead,
-// or existing users' databases will fall out of sync with the code.
 export const migrations: Migration[] = [
   {
     version: 1,
     name: 'initial schema',
-    up: (db) => {
-      db.exec(`
-        -- Project sites/regions (e.g. "At North Copenhagen", "GVX 03 - Gävle").
-        CREATE TABLE projects (
+    up: async (db) => {
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS projects (
           id                INTEGER PRIMARY KEY AUTOINCREMENT,
           name              TEXT NOT NULL UNIQUE,
           location          TEXT,
@@ -28,9 +22,7 @@ export const migrations: Migration[] = [
                               CHECK (status IN ('active', 'completed'))
         );
 
-        -- Catalog of item *types* (mirrors the "Main Inventory" sheet) —
-        -- per-unit tracking lives in item_units below.
-        CREATE TABLE items (
+        CREATE TABLE IF NOT EXISTS items (
           id            INTEGER PRIMARY KEY AUTOINCREMENT,
           category      TEXT NOT NULL,
           name          TEXT NOT NULL,
@@ -38,11 +30,7 @@ export const migrations: Migration[] = [
           UNIQUE (category, name)
         );
 
-        -- Individual physical units. serial_id is nullable because some item
-        -- types (e.g. "Cable Tester") are tracked only by quantity, not by
-        -- serial — those get anonymous rows here, one per unit on hand.
-        -- assigned_project_id NULL means "Available" / unassigned.
-        CREATE TABLE item_units (
+        CREATE TABLE IF NOT EXISTS item_units (
           id                  INTEGER PRIMARY KEY AUTOINCREMENT,
           item_id             INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
           serial_id           TEXT,
@@ -53,16 +41,12 @@ export const migrations: Migration[] = [
                                 CHECK (status IN ('In Use', 'Available', 'Retired-Damaged')),
           photo_evidence_ref  TEXT
         );
-        CREATE INDEX idx_item_units_item_id ON item_units(item_id);
-        CREATE INDEX idx_item_units_project_id ON item_units(assigned_project_id);
-        -- Serial IDs must be unique when present, but many rows have none —
-        -- a partial index lets multiple NULLs coexist.
-        CREATE UNIQUE INDEX idx_item_units_serial_id ON item_units(serial_id)
+        CREATE INDEX IF NOT EXISTS idx_item_units_item_id ON item_units(item_id);
+        CREATE INDEX IF NOT EXISTS idx_item_units_project_id ON item_units(assigned_project_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_item_units_serial_id ON item_units(serial_id)
           WHERE serial_id IS NOT NULL;
 
-        -- Movement history between projects — populated both by manual entry
-        -- and automatically during Excel re-import reconciliation.
-        CREATE TABLE transfers (
+        CREATE TABLE IF NOT EXISTS transfers (
           id              INTEGER PRIMARY KEY AUTOINCREMENT,
           date            TEXT NOT NULL,
           item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
@@ -75,12 +59,11 @@ export const migrations: Migration[] = [
           notes           TEXT,
           status          TEXT NOT NULL DEFAULT 'Recorded'
         );
-        CREATE INDEX idx_transfers_item_id ON transfers(item_id);
-        CREATE INDEX idx_transfers_from_project ON transfers(from_project_id);
-        CREATE INDEX idx_transfers_to_project ON transfers(to_project_id);
+        CREATE INDEX IF NOT EXISTS idx_transfers_item_id ON transfers(item_id);
+        CREATE INDEX IF NOT EXISTS idx_transfers_from_project ON transfers(from_project_id);
+        CREATE INDEX IF NOT EXISTS idx_transfers_to_project ON transfers(to_project_id);
 
-        -- Hand-over records, typically created when a project is archived.
-        CREATE TABLE handovers (
+        CREATE TABLE IF NOT EXISTS handovers (
           id             INTEGER PRIMARY KEY AUTOINCREMENT,
           project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           handover_date  TEXT NOT NULL,
@@ -89,7 +72,7 @@ export const migrations: Migration[] = [
           notes          TEXT,
           signature_ref  TEXT
         );
-        CREATE INDEX idx_handovers_project_id ON handovers(project_id);
+        CREATE INDEX IF NOT EXISTS idx_handovers_project_id ON handovers(project_id);
       `)
     }
   }

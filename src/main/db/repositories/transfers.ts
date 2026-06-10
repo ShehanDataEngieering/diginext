@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3-multiple-ciphers'
+import type { DatabaseAdapter } from '../adapter'
 import type { Transfer, TransferInput } from '../../../shared/ipc'
 
 interface TransferRow {
@@ -31,13 +31,11 @@ function toTransfer(row: TransferRow): Transfer {
   }
 }
 
-export function createTransfer(db: Database.Database, input: TransferInput): Transfer {
-  const result = db
-    .prepare(
-      `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+export async function createTransfer(db: DatabaseAdapter, input: TransferInput): Promise<Transfer> {
+  const result = await db.query(
+    `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    [
       input.date,
       input.itemId,
       input.serialId,
@@ -48,22 +46,20 @@ export function createTransfer(db: Database.Database, input: TransferInput): Tra
       input.authorizedBy,
       input.notes,
       input.status ?? 'Recorded'
-    )
-
-  const row = db.prepare('SELECT * FROM transfers WHERE id = ?').get(result.lastInsertRowid) as TransferRow
-  return toTransfer(row)
+    ]
+  )
+  return toTransfer(result.rows[0] as unknown as TransferRow)
 }
 
-export function listTransfers(db: Database.Database): Transfer[] {
-  const rows = db.prepare('SELECT * FROM transfers ORDER BY date DESC, id DESC').all() as TransferRow[]
-  return rows.map(toTransfer)
+export async function listTransfers(db: DatabaseAdapter): Promise<Transfer[]> {
+  const { rows } = await db.query('SELECT * FROM transfers ORDER BY date DESC, id DESC')
+  return (rows as unknown as TransferRow[]).map(toTransfer)
 }
 
-export function getTransfersByProject(db: Database.Database, projectId: number): Transfer[] {
-  const rows = db
-    .prepare(
-      'SELECT * FROM transfers WHERE from_project_id = ? OR to_project_id = ? ORDER BY date DESC, id DESC'
-    )
-    .all(projectId, projectId) as TransferRow[]
-  return rows.map(toTransfer)
+export async function getTransfersByProject(db: DatabaseAdapter, projectId: number): Promise<Transfer[]> {
+  const { rows } = await db.query(
+    'SELECT * FROM transfers WHERE from_project_id = ? OR to_project_id = ? ORDER BY date DESC, id DESC',
+    [projectId, projectId]
+  )
+  return (rows as unknown as TransferRow[]).map(toTransfer)
 }

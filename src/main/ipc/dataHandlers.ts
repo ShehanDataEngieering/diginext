@@ -1,11 +1,10 @@
-// Registers IPC handlers for the CRUD data layer (projects, items, item
-// units, dashboard rollup). Kept separate from main/index.ts so that file
-// stays focused on app lifecycle/window management.
 import { app, ipcMain } from 'electron'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
-import type Database from 'better-sqlite3-multiple-ciphers'
 import { IPC_CHANNELS } from '../../shared/ipc'
+import type {
+  DatabaseAdapter
+} from '../db/adapter'
 import type {
   ExportProjectResult,
   ItemInput,
@@ -36,30 +35,21 @@ import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportPr
 import { importAndReconcile } from '../excel/importAndReconcile'
 import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
 
-// Exports land here rather than behind a save-as picker — see the handler
-// below for why (native dialogs deadlock the whole app under this WSLg
-// setup). `Documents` is a stable, user-visible spot they'd find anyway —
-// easy to locate in Explorer and to attach straight to an email.
 const EXPORT_DIR_NAME = 'Diginext Inventory Exports'
 
 function exportDirectory(): string {
   return join(app.getPath('documents'), EXPORT_DIR_NAME)
 }
 
-// SQLite's raw foreign-key violation message ("FOREIGN KEY constraint failed")
-// means nothing to a user. Translate the one case we expect to actually
-// surface in the UI — deleting an item type that still has units — into
-// guidance they can act on; let anything else through as-is for now.
 function toUserMessage(error: unknown, context: 'delete-item'): string {
   const message = error instanceof Error ? error.message : String(error)
-  if (context === 'delete-item' && message.includes('FOREIGN KEY constraint failed')) {
+  if (context === 'delete-item' && (message.includes('FOREIGN KEY constraint failed') || message.includes('violates foreign key constraint'))) {
     return 'This item type still has units recorded against it. Remove or reassign those units first.'
   }
   return message
 }
 
-export function registerDataHandlers(db: Database.Database): void {
-  // --- Projects -------------------------------------------------------------
+export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.projectsList, () => listProjects(db))
   ipcMain.handle(IPC_CHANNELS.projectsCreate, (_event, input: ProjectInput) => createProject(db, input))
   ipcMain.handle(IPC_CHANNELS.projectsUpdate, (_event, id: number, input: ProjectInput) =>
@@ -69,7 +59,6 @@ export function registerDataHandlers(db: Database.Database): void {
     setProjectStatus(db, id, status)
   )
 
-  // --- Items -----------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.itemsList, () => listItems(db))
   ipcMain.handle(IPC_CHANNELS.itemsCreate, (_event, input: ItemInput) => createItem(db, input))
   ipcMain.handle(IPC_CHANNELS.itemsUpdate, (_event, id: number, input: ItemInput) =>
@@ -77,48 +66,34 @@ export function registerDataHandlers(db: Database.Database): void {
   )
   ipcMain.handle(IPC_CHANNELS.itemsDelete, (_event, id: number) => {
     try {
-      deleteItem(db, id)
+      return deleteItem(db, id)
     } catch (error) {
       throw new Error(toUserMessage(error, 'delete-item'))
     }
   })
 
-  // --- Item units -------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.itemUnitsList, (_event, filter?: ItemUnitFilter) =>
     listItemUnits(db, filter)
   )
   ipcMain.handle(IPC_CHANNELS.itemUnitsCreate, (_event, input: ItemUnitInput) =>
     createItemUnit(db, input)
   )
-  ipcMain.handle(IPC_CHANNELS.itemUnitsUpdate, (_event, id: number, input: ItemUnitInput) => {
-    // Look up the outgoing photo *before* overwriting it — if this edit
-    // replaced or cleared it, the old managed file is now orphaned and
-    // should be cleaned up (see photoStore.ts's `deleteManagedPhoto`; it's a
-    // no-op for refs that aren't ours, e.g. old free-text values).
-    const previous = getItemUnitById(db, id)
-    const updated = updateItemUnit(db, id, input)
+  ipcMain.handle(IPC_CHANNELS.itemUnitsUpdate, async (_event, id: number, input: ItemUnitInput) => {
+    const previous = await getItemUnitById(db, id)
+    const updated = await updateItemUnit(db, id, input)
     if (previous && previous.photoEvidenceRef !== updated.photoEvidenceRef) {
       deleteManagedPhoto(previous.photoEvidenceRef)
     }
     return updated
   })
-  ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, (_event, id: number) => {
-    const existing = getItemUnitById(db, id)
-    deleteItemUnit(db, id)
+  ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, async (_event, id: number) => {
+    const existing = await getItemUnitById(db, id)
+    await deleteItemUnit(db, id)
     if (existing) deleteManagedPhoto(existing.photoEvidenceRef)
   })
 
-  // --- Dashboard --------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.dashboardRollup, () => getDashboardRollup(db))
 
-  // --- Photos ------------------------------------------------------------------
-  // "Upload photos and see those photos of items". File pickers go through
-  // the same native (GTK) dialog machinery that deadlocked the Excel export
-  // under WSLg (see exportProjectSheet/dataHandlers history), so the
-  // renderer attaches photos via drag-and-drop instead — `webUtils` resolves
-  // the dropped File to an absolute path, which lands here to be copied into
-  // the managed store. Reading hands back a data URL so the renderer can
-  // show it inline without any custom-protocol/CSP plumbing.
   ipcMain.handle(IPC_CHANNELS.photosImport, (_event, sourcePath: string): PhotoImportResult => {
     return { reference: importPhoto(sourcePath) }
   })
@@ -126,33 +101,14 @@ export function registerDataHandlers(db: Database.Database): void {
     return readPhotoDataUrl(reference)
   })
 
-  // --- Excel export -----------------------------------------------------------
-  // "Export inventory sheet for [Project]" (plan's Excel Export section).
-  //
-  // This was originally built around `dialog.showSaveDialog` (the standard
-  // Electron "Save As" pattern) — but that froze the whole app solid the
-  // moment the dialog appeared, even unattached to the main window. That's a
-  // known class of issue with Electron's native (GTK) dialogs deadlocking
-  // against the renderer's event loop under WSLg's X11/Wayland passthrough,
-  // which is the only environment available for running this Windows-bound
-  // app during development. Rather than chase a picker that may never behave
-  // here (and would be one more thing to verify post-packaging on real
-  // Windows), we sidestep native dialogs entirely: write straight to a fixed,
-  // predictable, user-visible folder and report the exact path back — the
-  // recipient just needs *a* file to attach to an email, not to choose where
-  // it lives.
   ipcMain.handle(
     IPC_CHANNELS.excelExportProject,
     async (_event, projectId: number): Promise<ExportProjectResult> => {
-      const project = getProjectById(db, projectId)
+      const project = await getProjectById(db, projectId)
       if (!project) throw new Error(`Project ${projectId} not found`)
 
-      const items = listItems(db)
-      const units = listItemUnits(db, { projectId })
-      // Async because building the workbook now embeds the branded logo image
-      // and applies cell styling via `exceljs` (see exportProjectSheet.ts for
-      // why that module — not the `xlsx` package used elsewhere — owns this
-      // write path).
+      const items = await listItems(db)
+      const units = await listItemUnits(db, { projectId })
       const workbook = await buildProjectInventoryWorkbook(project, items, units)
 
       const dir = exportDirectory()
@@ -164,12 +120,10 @@ export function registerDataHandlers(db: Database.Database): void {
     }
   )
 
-  // --- Excel import -----------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string) => {
     return importAndReconcile(db, filePath)
   })
 
-  // --- Transfers --------------------------------------------------------------
   ipcMain.handle(IPC_CHANNELS.transfersList, () => listTransfers(db))
   ipcMain.handle(IPC_CHANNELS.transfersByProject, (_event, projectId: number) =>
     getTransfersByProject(db, projectId)

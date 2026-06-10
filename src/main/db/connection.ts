@@ -1,8 +1,7 @@
 import { app } from 'electron'
-import Database from 'better-sqlite3-multiple-ciphers'
 import { join } from 'path'
-import { getOrCreateEncryptionKey } from '../security/encryptionKey'
-import { migrations } from './migrations'
+import { PostgresAdapter } from './postgresAdapter'
+import { getDatabaseType, getPostgresConnectionString, type DatabaseAdapter } from './adapter'
 
 const DB_FILE_NAME = 'inventory.sqlite'
 
@@ -10,67 +9,125 @@ export function dbPath(): string {
   return join(app.getPath('userData'), DB_FILE_NAME)
 }
 
-let db: Database.Database | null = null
+let adapter: DatabaseAdapter | null = null
 
-// Opens (or returns the cached handle to) the encrypted database, applying
-// any migrations that haven't run yet. Call this lazily — not at import time —
-// so it only touches disk/safeStorage once Electron is ready.
-export function getDb(): Database.Database {
-  if (db) return db
+export async function initDb(): Promise<DatabaseAdapter> {
+  if (adapter) return adapter
 
-  const instance = new Database(dbPath())
+  const dbType = getDatabaseType()
+  if (dbType !== 'postgres') {
+    throw new Error('Only DATABASE_TYPE=postgres is supported. Set POSTGRES_CONNECTION_STRING in .env')
+  }
 
-  // SQLCipher requires the key to be set as the very first operation on a
-  // fresh connection, before any table access — including the migration
-  // check below. The x'...' form tells SQLCipher to use these 64 hex chars
-  // as the raw 256-bit key directly, skipping PBKDF2 passphrase derivation
-  // (appropriate since getOrCreateEncryptionKey already returns a
-  // high-entropy random key rather than a user-chosen password).
-  instance.pragma(`key="x'${getOrCreateEncryptionKey()}'"`)
-
-  instance.pragma('journal_mode = WAL')
-  instance.pragma('foreign_keys = ON')
-
-  runMigrations(instance)
-
-  db = instance
-  return db
+  const pg = new PostgresAdapter(getPostgresConnectionString())
+  await runPostgresMigrations(pg)
+  adapter = pg
+  return pg
 }
 
-function runMigrations(instance: Database.Database): void {
-  instance.exec(`
+export function getDb(): DatabaseAdapter {
+  if (!adapter) throw new Error('Database not initialized — call initDb() first')
+  return adapter
+}
+
+async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
+  await pg.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version    INTEGER PRIMARY KEY,
       name       TEXT NOT NULL,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      applied_at TEXT NOT NULL DEFAULT NOW()
     )
   `)
 
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id                SERIAL PRIMARY KEY,
+      name              TEXT NOT NULL UNIQUE,
+      location          TEXT,
+      updated_by        TEXT,
+      last_updated_date TEXT,
+      status            TEXT NOT NULL DEFAULT 'active'
+                          CHECK (status IN ('active', 'completed'))
+    )
+  `)
+
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS items (
+      id            SERIAL PRIMARY KEY,
+      category      TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      initial_stock INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (category, name)
+    )
+  `)
+
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS item_units (
+      id                  SERIAL PRIMARY KEY,
+      item_id             INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+      serial_id           TEXT,
+      assigned_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      audit_date          TEXT,
+      remarks             TEXT,
+      status              TEXT NOT NULL DEFAULT 'Available'
+                            CHECK (status IN ('In Use', 'Available', 'Retired-Damaged')),
+      photo_evidence_ref  TEXT
+    )
+  `)
+
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS transfers (
+      id              SERIAL PRIMARY KEY,
+      date            TEXT NOT NULL,
+      item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+      serial_id       TEXT,
+      qty             INTEGER NOT NULL DEFAULT 1,
+      from_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      to_project_id   INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      transferred_by  TEXT,
+      authorized_by   TEXT,
+      notes           TEXT,
+      status          TEXT NOT NULL DEFAULT 'Recorded'
+    )
+  `)
+
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS handovers (
+      id             SERIAL PRIMARY KEY,
+      project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      handover_date  TEXT NOT NULL,
+      handed_over_by TEXT,
+      received_by    TEXT,
+      notes          TEXT,
+      signature_ref  TEXT
+    )
+  `)
+
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_item_id ON item_units(item_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_project_id ON item_units(assigned_project_id)`)
+  await pg.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_item_units_serial_id ON item_units(serial_id) WHERE serial_id IS NOT NULL`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_transfers_item_id ON transfers(item_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_transfers_from_project ON transfers(from_project_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_transfers_to_project ON transfers(to_project_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_handovers_project_id ON handovers(project_id)`)
+
   const applied = new Set(
-    instance
-      .prepare('SELECT version FROM schema_migrations')
-      .all()
-      .map((row) => (row as { version: number }).version)
+    (await pg.query('SELECT version FROM schema_migrations'))
+      .rows
+      .map((row) => row.version as number)
   )
 
-  const pending = migrations
-    .filter((migration) => !applied.has(migration.version))
-    .sort((a, b) => a.version - b.version)
-
-  for (const migration of pending) {
-    const applyMigration = instance.transaction(() => {
-      migration.up(instance)
-      instance
-        .prepare('INSERT INTO schema_migrations (version, name) VALUES (?, ?)')
-        .run(migration.version, migration.name)
-    })
-    applyMigration()
+  if (!applied.has(1)) {
+    await pg.query(
+      'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
+      [1, 'initial schema']
+    )
   }
 }
 
-// Closes the connection so the file can be safely copied/replaced (used by
-// restoreDatabase) or on app shutdown. Safe to call even if never opened.
-export function closeDb(): void {
-  db?.close()
-  db = null
+export async function closeDb(): Promise<void> {
+  if (adapter) {
+    await adapter.close()
+    adapter = null
+  }
 }

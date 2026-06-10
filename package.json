@@ -9,13 +9,12 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac"
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "migrate:postgres": "npx tsx src/main/db/migrateToPostgres.ts"
   },
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
-    "@clerk/backend": "^3.5.0",
-    "@clerk/clerk-react": "^5.61.8",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@radix-ui/react-dialog": "^1.1.16",
@@ -25,13 +24,14 @@
     "@radix-ui/react-slot": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.14",
     "@radix-ui/react-tooltip": "^1.2.9",
+    "@supabase/supabase-js": "^2.108.1",
     "@tailwindcss/vite": "^4.3.0",
-    "better-sqlite3-multiple-ciphers": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.17.0",
+    "pg": "^8.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0",
@@ -40,12 +40,14 @@
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "^41.7.1",
     "electron-builder": "^26.15.0",
     "electron-vite": "^3.1.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^6.4.3"
   }
