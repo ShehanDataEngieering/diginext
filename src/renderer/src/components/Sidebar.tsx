@@ -1,15 +1,24 @@
-import { Boxes, Gauge, FolderKanban, Package, Settings, LogOut } from 'lucide-react'
+import { Boxes, Camera, Gauge, FolderKanban, Package, Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@shared/ipc'
 import { supabase } from '@/auth/supabaseClient'
 
-export type ViewTab = 'dashboard' | 'items' | 'projects' | 'item-units' | 'settings' | 'transfers' | 'handovers'
+export type ViewTab =
+  | 'dashboard'
+  | 'items'
+  | 'projects'
+  | 'item-units'
+  | 'photo-log'
+  | 'settings'
+  | 'transfers'
+  | 'handovers'
 
 const VIEW_ITEMS: { tab: ViewTab; label: string; icon: typeof Gauge }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: Gauge },
   { tab: 'items', label: 'Items', icon: Package },
   { tab: 'projects', label: 'Projects', icon: FolderKanban },
   { tab: 'item-units', label: 'Item units', icon: Boxes },
+  { tab: 'photo-log', label: 'Photo Log', icon: Camera },
   { tab: 'transfers', label: 'Transfers', icon: Package },
   { tab: 'handovers', label: 'Handovers', icon: FolderKanban },
   { tab: 'settings', label: 'Settings', icon: Settings }

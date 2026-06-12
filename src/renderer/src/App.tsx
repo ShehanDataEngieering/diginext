@@ -10,6 +10,7 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransferLogPage } from './pages/TransferLogPage'
 import { HandoverPage } from './pages/HandoverPage'
+import { PhotoLogPage } from './pages/PhotoLogPage'
 
 function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
@@ -100,6 +101,11 @@ function App() {
             {activeTab === 'item-units' && (
               <div className="h-full overflow-y-auto p-3.5">
                 <ItemUnitsPage projectSeed={projectSeed} />
+              </div>
+            )}
+            {activeTab === 'photo-log' && (
+              <div className="h-full overflow-y-auto p-3.5">
+                <PhotoLogPage />
               </div>
             )}
             {activeTab === 'transfers' && (
