@@ -12,6 +12,7 @@ export type ViewTab =
   | 'settings'
   | 'transfers'
   | 'handovers'
+  | 'handover-flow'
 
 const VIEW_ITEMS: { tab: ViewTab; label: string; icon: typeof Gauge }[] = [
   { tab: 'dashboard', label: 'Dashboard', icon: Gauge },
