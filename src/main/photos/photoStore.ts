@@ -1,24 +1,9 @@
-// Manages the on-disk store for item-unit photos ("upload photos and see
-// those photos of items"). Lives entirely in the main process — the renderer
-// never touches the filesystem directly, only ever sees opaque references
-// (filenames) and base64 data URLs handed back over IPC.
-//
-// Why copy files into a managed folder rather than just remembering the
-// dropped path: the original path can move, get renamed, or live on removable
-// media, and `photo_evidence_ref` already doubles as a free-text field from
-// the old spreadsheet workflow (seeded data may hold arbitrary strings there
-// that aren't files at all). Owning a private copy means the reference we
-// store is something we can always resolve — or safely recognize we can't.
-import { app } from 'electron'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs'
-import { extname, join, basename } from 'path'
+import { readFileSync } from 'fs'
+import { extname, basename } from 'path'
 import { randomBytes } from 'crypto'
 
-const PHOTOS_DIR_NAME = 'photos'
+const BUCKET_NAME = 'photos'
 
-// Only these get copied in or read back as images — anything else either
-// isn't a photo (e.g. a stray text reference from seeded data) or isn't a
-// format Chromium can render inline via a data URL.
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -28,71 +13,112 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   '.bmp': 'image/bmp'
 }
 
-function photosDirectory(): string {
-  const dir = join(app.getPath('userData'), PHOTOS_DIR_NAME)
-  mkdirSync(dir, { recursive: true })
-  return dir
+let bucketReady = false
+
+function getStorageConfig() {
+  const url = process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env')
+  return { url, key }
 }
 
-// References are stored bare (no directory components) and resolved inside
-// `photosDirectory()` — reject anything that looks like it's trying to escape
-// that folder (e.g. a hand-edited DB value containing "../"), and anything
-// whose extension we don't recognize as an image we manage.
-function resolveManagedPhotoPath(reference: string): string | null {
-  if (!reference || reference !== basename(reference)) return null
-  const ext = extname(reference).toLowerCase()
-  if (!(ext in MIME_BY_EXTENSION)) return null
-  return join(photosDirectory(), reference)
+function storageHeaders(key: string): Record<string, string> {
+  return {
+    'Authorization': `Bearer ${key}`,
+    'apikey': key
+  }
 }
 
-/**
- * Copies an image the user dropped onto the app into the managed photos
- * folder under a generated, collision-proof name, and returns the reference
- * to store in `item_units.photo_evidence_ref`.
- *
- * Throws on unsupported file types — surfaced to the user as a friendly
- * message by the IPC handler.
- */
-export function importPhoto(sourcePath: string): string {
+async function ensureBucket(): Promise<void> {
+  if (bucketReady) return
+  const { url, key } = getStorageConfig()
+  const headers = storageHeaders(key)
+
+  const listRes = await fetch(`${url}/storage/v1/bucket`, { headers })
+  if (!listRes.ok) throw new Error(`Failed to list buckets: ${listRes.status}`)
+  const buckets = (await listRes.json()) as { name: string }[]
+
+  if (!buckets.some((b) => b.name === BUCKET_NAME)) {
+    const createRes = await fetch(`${url}/storage/v1/bucket`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: BUCKET_NAME, public: false })
+    })
+    if (!createRes.ok) {
+      const err = await createRes.text()
+      throw new Error(`Failed to create bucket: ${createRes.status} ${err}`)
+    }
+  }
+  bucketReady = true
+}
+
+export async function importPhoto(sourcePath: string): Promise<string> {
   const ext = extname(sourcePath).toLowerCase()
   if (!(ext in MIME_BY_EXTENSION)) {
     throw new Error('Unsupported image type — use JPG, PNG, GIF, WEBP, or BMP.')
   }
 
+  await ensureBucket()
+
   const reference = `photo-${Date.now()}-${randomBytes(4).toString('hex')}${ext}`
-  copyFileSync(sourcePath, join(photosDirectory(), reference))
+  const fileData = readFileSync(sourcePath)
+  const contentType = MIME_BY_EXTENSION[ext]
+  const { url, key } = getStorageConfig()
+
+  const res = await fetch(`${url}/storage/v1/object/${BUCKET_NAME}/${reference}`, {
+    method: 'POST',
+    headers: {
+      ...storageHeaders(key),
+      'Content-Type': contentType,
+      'x-upsert': 'false'
+    },
+    body: fileData
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Failed to upload photo: ${res.status} ${err}`)
+  }
   return reference
 }
 
-/**
- * Reads a managed photo back as a data URL for inline display
- * (`<img src="data:...">`) — sidesteps custom-protocol/CSP plumbing entirely,
- * which is plenty fast for the thumbnail/single-photo-viewer sizes this app
- * deals with. Returns null for anything that isn't a photo we recognize and
- * own (including the old free-text references), so the UI can fall back to a
- * placeholder without surfacing an error for perfectly normal data.
- */
-export function readPhotoDataUrl(reference: string): string | null {
-  const filePath = resolveManagedPhotoPath(reference)
-  if (!filePath || !existsSync(filePath)) return null
+export async function readPhotoDataUrl(reference: string): Promise<string | null> {
+  if (!reference || reference !== basename(reference)) return null
+  const ext = extname(reference).toLowerCase()
+  if (!(ext in MIME_BY_EXTENSION)) return null
 
-  const mime = MIME_BY_EXTENSION[extname(filePath).toLowerCase()]
-  const data = readFileSync(filePath)
-  return `data:${mime};base64,${data.toString('base64')}`
+  try {
+    await ensureBucket()
+    const { url, key } = getStorageConfig()
+
+    const res = await fetch(`${url}/storage/v1/object/${BUCKET_NAME}/${reference}`, {
+      headers: storageHeaders(key)
+    })
+    if (!res.ok) return null
+
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const mime = MIME_BY_EXTENSION[ext]
+    return `data:${mime};base64,${buffer.toString('base64')}`
+  } catch {
+    return null
+  }
 }
 
-/**
- * Best-effort cleanup when a unit's photo is replaced or cleared — never
- * throws, since a stray file left behind in the managed folder is harmless
- * and not worth surfacing as an error to the user.
- */
-export function deleteManagedPhoto(reference: string | null | undefined): void {
+export async function deleteManagedPhoto(reference: string | null | undefined): Promise<void> {
   if (!reference) return
-  const filePath = resolveManagedPhotoPath(reference)
-  if (!filePath) return
+  if (reference !== basename(reference)) return
+  const ext = extname(reference).toLowerCase()
+  if (!(ext in MIME_BY_EXTENSION)) return
+
   try {
-    if (existsSync(filePath)) unlinkSync(filePath)
+    await ensureBucket()
+    const { url, key } = getStorageConfig()
+
+    await fetch(`${url}/storage/v1/object/${BUCKET_NAME}/${reference}`, {
+      method: 'DELETE',
+      headers: storageHeaders(key)
+    })
   } catch {
-    // Ignored — see doc comment above.
+    // Best-effort cleanup
   }
 }
