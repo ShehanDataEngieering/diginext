@@ -3,6 +3,8 @@ import type {
   BackupInfo,
   DashboardRollup,
   ExportProjectResult,
+  Handover,
+  HandoverInput,
   ImportSummary,
   Item,
   ItemInput,
@@ -13,7 +15,8 @@ import type {
   Project,
   ProjectInput,
   ProjectStatus,
-  Transfer
+  Transfer,
+  TransferInput
 } from '../shared/ipc'
 
 interface Api {
@@ -53,6 +56,12 @@ interface Api {
   transfers: {
     list: () => Promise<Transfer[]>
     byProject: (projectId: number) => Promise<Transfer[]>
+    create: (input: TransferInput) => Promise<Transfer>
+  }
+  handovers: {
+    list: () => Promise<Handover[]>
+    byProject: (projectId: number) => Promise<Handover[]>
+    create: (input: HandoverInput) => Promise<Handover>
   }
   photos: {
     pathForFile: (file: File) => string

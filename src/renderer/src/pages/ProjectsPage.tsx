@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Archive, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
-import type { Project, ProjectInput, ImportSummary } from '@shared/ipc'
+import { Archive, ArrowRightLeft, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
+import type { ItemUnitWithDetails, Project, ProjectInput, ImportSummary } from '@shared/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,10 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
+const UNASSIGNED = '__unassigned__'
 
 const emptyForm: ProjectInput = { name: '', location: '', updatedBy: '', lastUpdatedDate: '' }
 
@@ -43,6 +46,12 @@ export function ProjectsPage(): React.JSX.Element {
   // Path-based import fallback for WSLg where drag-and-drop from Windows
   // Explorer never reaches the app (WSLg doesn't bridge drag events).
   const [importPath, setImportPath] = useState('')
+
+  const [transferProject, setTransferProject] = useState<Project | null>(null)
+  const [transferUnits, setTransferUnits] = useState<ItemUnitWithDetails[]>([])
+  const [selectedUnitIds, setSelectedUnitIds] = useState<Set<number>>(new Set())
+  const [bulkDestProjectId, setBulkDestProjectId] = useState(UNASSIGNED)
+  const [bulkTransferring, setBulkTransferring] = useState(false)
 
   async function reload(): Promise<void> {
     try {
@@ -161,6 +170,66 @@ export function ProjectsPage(): React.JSX.Element {
     if (!path) return
     await runImport(path)
     setImportPath('')
+  }
+
+  async function openTransferUnits(project: Project): Promise<void> {
+    setTransferProject(project)
+    setSelectedUnitIds(new Set())
+    setBulkDestProjectId(UNASSIGNED)
+    try {
+      const units = await window.api.itemUnits.list({ projectId: project.id })
+      setTransferUnits(units)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function toggleUnitSelected(unitId: number): void {
+    setSelectedUnitIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(unitId)) next.delete(unitId)
+      else next.add(unitId)
+      return next
+    })
+  }
+
+  async function handleBulkTransfer(): Promise<void> {
+    if (!transferProject || selectedUnitIds.size === 0) return
+    const toProjectId = bulkDestProjectId === UNASSIGNED ? null : Number(bulkDestProjectId)
+    setBulkTransferring(true)
+    setError(null)
+    try {
+      const selected = transferUnits.filter((u) => selectedUnitIds.has(u.id))
+      for (const unit of selected) {
+        await window.api.itemUnits.update(unit.id, {
+          itemId: unit.itemId,
+          serialId: unit.serialId,
+          assignedProjectId: toProjectId,
+          auditDate: unit.auditDate,
+          remarks: unit.remarks,
+          status: unit.status,
+          photoEvidenceRef: unit.photoEvidenceRef
+        })
+        await window.api.transfers.create({
+          date: new Date().toISOString().slice(0, 10),
+          itemId: unit.itemId,
+          serialId: unit.serialId,
+          qty: 1,
+          fromProjectId: unit.assignedProjectId,
+          toProjectId,
+          transferredBy: null,
+          authorizedBy: null,
+          notes: null,
+          status: 'Completed'
+        })
+      }
+      setTransferProject(null)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBulkTransferring(false)
+    }
   }
 
   return (
@@ -317,6 +386,14 @@ export function ProjectsPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title="Transfer units out of this project"
+                      onClick={() => openTransferUnits(project)}
+                    >
+                      <ArrowRightLeft />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       title={project.status === 'active' ? 'Archive' : 'Reactivate'}
                       onClick={() => toggleStatus(project)}
                     >
@@ -387,6 +464,86 @@ export function ProjectsPage(): React.JSX.Element {
             </Button>
             <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
               {dialogProject === 'new' ? 'Create' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transferProject !== null} onOpenChange={(open) => !open && setTransferProject(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer units</DialogTitle>
+            <DialogDescription>
+              {transferProject
+                ? `Move selected units out of "${transferProject.name}" to another project.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <div className="max-h-64 overflow-y-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <TableHead>Item</TableHead>
+                    <TableHead>Serial / ID</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transferUnits.map((unit) => (
+                    <TableRow key={unit.id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedUnitIds.has(unit.id)}
+                          onChange={() => toggleUnitSelected(unit.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {unit.itemCategory} — {unit.itemName}
+                      </TableCell>
+                      <TableCell className="font-medium">{unit.serialId ?? '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                  {transferUnits.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-muted-foreground text-center">
+                        No units assigned to this project.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Destination project</Label>
+              <Select value={bulkDestProjectId} onValueChange={setBulkDestProjectId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Available (unassigned)</SelectItem>
+                  {projects
+                    ?.filter((p) => p.id !== transferProject?.id)
+                    .map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                        {project.status === 'completed' ? ' (completed)' : ''}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferProject(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkTransfer} disabled={bulkTransferring || selectedUnitIds.size === 0}>
+              Transfer {selectedUnitIds.size > 0 ? `(${selectedUnitIds.size})` : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
