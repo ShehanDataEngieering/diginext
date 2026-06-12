@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Archive, ArrowRightLeft, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
+import { Archive, ArrowRightLeft, ClipboardCheck, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
 import type { ItemUnitWithDetails, Project, ProjectInput, ImportSummary } from '@shared/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,11 @@ function toInput(form: typeof emptyForm): ProjectInput {
   }
 }
 
-export function ProjectsPage(): React.JSX.Element {
+export function ProjectsPage({
+  onStartHandover
+}: {
+  onStartHandover?: (projectId: number) => void
+} = {}): React.JSX.Element {
   const [projects, setProjects] = useState<Project[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialogProject, setDialogProject] = useState<Project | 'new' | null>(null)
@@ -390,6 +394,14 @@ export function ProjectsPage(): React.JSX.Element {
                       onClick={() => openTransferUnits(project)}
                     >
                       <ArrowRightLeft />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Start handover for this project"
+                      onClick={() => onStartHandover?.(project.id)}
+                    >
+                      <ClipboardCheck />
                     </Button>
                     <Button
                       variant="ghost"
