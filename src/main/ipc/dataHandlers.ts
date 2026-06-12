@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron'
-import { mkdirSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import ExcelJS from 'exceljs'
 import { IPC_CHANNELS } from '../../shared/ipc'
 import type {
   DatabaseAdapter
@@ -110,11 +111,19 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
       const items = await listItems(db)
       const units = await listItemUnits(db, { projectId })
-      const workbook = await buildProjectInventoryWorkbook(project, items, units)
 
       const dir = exportDirectory()
       mkdirSync(dir, { recursive: true })
       const filePath = join(dir, exportFileName(project))
+
+      // Read existing workbook if file exists (to append new dated sheet)
+      let existingWorkbook: ExcelJS.Workbook | undefined
+      if (existsSync(filePath)) {
+        existingWorkbook = new ExcelJS.Workbook()
+        await existingWorkbook.xlsx.readFile(filePath)
+      }
+
+      const workbook = await buildProjectInventoryWorkbook(project, items, units, existingWorkbook)
       await workbook.xlsx.writeFile(filePath)
 
       return { filePath }

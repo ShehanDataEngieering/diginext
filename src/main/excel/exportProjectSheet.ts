@@ -117,6 +117,10 @@ interface ItemSpan {
  * row per serialized unit, with category bands coloured and rotated like the
  * reference), and a hidden metadata sheet carrying the re-import marker.
  *
+ * If `existingWorkbook` is provided, copies all non-meta sheets from it first,
+ * then adds the new dated sheet and images sheet. This allows accumulating
+ * historical snapshots (e.g., "May 7", "April 8", "images April8").
+ *
  * `units` may contain units for other projects too (callers can pass the
  * full list from a single `listItemUnits` call); only units actually
  * assigned to `project.id` are included here.
@@ -124,10 +128,43 @@ interface ItemSpan {
 export async function buildProjectInventoryWorkbook(
   project: Project,
   items: Item[],
-  units: ItemUnitWithDetails[]
+  units: ItemUnitWithDetails[],
+  existingWorkbook?: ExcelJS.Workbook
 ): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook()
-  const sheet = workbook.addWorksheet(sheetTabName(project), {
+  const newSheetName = sheetTabName(project)
+  const newImagesSheetName = `images ${newSheetName}`
+  
+  // Copy existing sheets (except meta sheet and sheets we're about to replace)
+  if (existingWorkbook) {
+    for (const oldSheet of existingWorkbook.worksheets) {
+      if (oldSheet.name === EXPORT_META_SHEET) continue
+      if (oldSheet.name === newSheetName) continue
+      if (oldSheet.name === newImagesSheetName) continue
+      const newSheet = workbook.addWorksheet(oldSheet.name)
+      newSheet.model = oldSheet.model
+
+      // The copied sheet's `media` entries (e.g. the logo image) reference
+      // `imageId` indices into the *old* workbook's media array. The new
+      // workbook builds its own media array from scratch (currently just the
+      // new sheet's logo), so those indices would point at the wrong image —
+      // or nothing at all — producing a corrupted file. Re-register each
+      // referenced image with the new workbook and rewrite the index.
+      const media = (newSheet.model as unknown as { media?: { imageId: number }[] }).media
+      if (media) {
+        for (const ref of media) {
+          const oldImage = existingWorkbook.model.media[ref.imageId]
+          if (!oldImage) continue
+          ref.imageId = workbook.addImage({
+            buffer: oldImage.buffer,
+            extension: oldImage.extension as 'jpeg' | 'png' | 'gif'
+          })
+        }
+      }
+    }
+  }
+  
+  const sheet = workbook.addWorksheet(newSheetName, {
     views: [
       {
         // Freeze the blank left-margin column (A), the Category column (B),
@@ -162,6 +199,9 @@ export async function buildProjectInventoryWorkbook(
   // Black borders on the full table — column-header row down to the last item
   // row, across all 11 data columns — matching the lined look of the reference.
   applyTableBorders(sheet, COLUMN_HEADER_ROW, lastRow)
+
+  // Add images sheet listing serial IDs of units with photos
+  buildImagesSheet(workbook, units, project.id, sheetTabName(project))
 
   appendMetaSheet(workbook, {
     projectId: project.id,
@@ -471,6 +511,38 @@ function fillRange(
   }
 }
 
+// --- Images log sheet ------------------------------------------------------
+
+function buildImagesSheet(
+  workbook: ExcelJS.Workbook,
+  units: ItemUnitWithDetails[],
+  projectId: number,
+  dateSheetName: string
+): void {
+  const unitsWithPhotos = units.filter(
+    (u) => u.assignedProjectId === projectId && u.photoEvidenceRef !== null && u.photoEvidenceRef !== ''
+  )
+  if (unitsWithPhotos.length === 0) return
+  const sheetName = `images ${dateSheetName}`
+  const sheet = workbook.addWorksheet(sheetName)
+  sheet.getColumn(1).width = 30
+  sheet.getColumn(2).width = 30
+  sheet.getColumn(3).width = 20
+  const headerRow = sheet.getRow(1)
+  headerRow.getCell(1).value = 'Serial ID'
+  headerRow.getCell(2).value = 'Item Name'
+  headerRow.getCell(3).value = 'Category'
+  headerRow.getCell(1).font = { bold: true }
+  headerRow.getCell(2).font = { bold: true }
+  headerRow.getCell(3).font = { bold: true }
+  unitsWithPhotos.forEach((unit, index) => {
+    const row = sheet.getRow(index + 2)
+    row.getCell(1).value = unit.serialId ?? ''
+    row.getCell(2).value = unit.itemName
+    row.getCell(3).value = unit.itemCategory
+  })
+}
+
 // --- Hidden metadata sheet ------------------------------------------------------
 
 function appendMetaSheet(workbook: ExcelJS.Workbook, marker: ExportMarker): void {
@@ -522,13 +594,11 @@ export function readExportMarker(workbook: WorkBook): ExportMarker | null {
 
 /**
  * Output filename — keeps the recipient's familiar "Inventory - <Project>"
- * naming, with a date stamp so re-exporting the same project on a later day
- * produces a new file rather than silently overwriting the one already sent
- * out (we write straight to a fixed folder rather than via a save-as picker —
- * see the IPC handler for why).
+ * naming. Uses a stable name (no date stamp) so re-exports append to the
+ * same file, accumulating historical snapshots as separate sheets within
+ * the workbook (e.g., "May 7", "April 8", "images April8").
  */
-export function exportFileName(project: Project, date: Date = new Date()): string {
+export function exportFileName(project: Project): string {
   const safeName = project.name.replace(/[\\/:*?"<>|]+/g, ' ').trim()
-  const stamp = date.toISOString().slice(0, 10)
-  return `Inventory - ${safeName} - ${stamp}.xlsx`
+  return `Inventory - ${safeName}.xlsx`
 }
