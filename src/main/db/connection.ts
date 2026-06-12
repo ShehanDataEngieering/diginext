@@ -114,6 +114,14 @@ async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
     )
   `)
 
+  // handover_items predates this column on databases created before it was
+  // added — CREATE TABLE IF NOT EXISTS above is a no-op for those, so add it
+  // here too.
+  await pg.exec(`
+    ALTER TABLE handover_items
+    ADD COLUMN IF NOT EXISTS transfer_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
+  `)
+
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_item_id ON item_units(item_id)`)
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_project_id ON item_units(assigned_project_id)`)
   await pg.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_item_units_serial_id ON item_units(serial_id) WHERE serial_id IS NOT NULL`)
