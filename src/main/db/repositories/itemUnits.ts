@@ -20,10 +20,10 @@ interface ItemUnitWithDetailsRow extends ItemUnitRow {
 
 function toItemUnit(row: ItemUnitRow): ItemUnit {
   return {
-    id: row.id,
-    itemId: row.item_id,
+    id: Number(row.id),
+    itemId: Number(row.item_id),
     serialId: row.serial_id,
-    assignedProjectId: row.assigned_project_id,
+    assignedProjectId: row.assigned_project_id ? Number(row.assigned_project_id) : null,
     auditDate: row.audit_date,
     remarks: row.remarks,
     status: row.status,

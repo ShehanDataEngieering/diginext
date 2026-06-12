@@ -17,13 +17,13 @@ interface TransferRow {
 
 function toTransfer(row: TransferRow): Transfer {
   return {
-    id: row.id,
+    id: Number(row.id),
     date: row.date,
-    itemId: row.item_id,
+    itemId: Number(row.item_id),
     serialId: row.serial_id,
-    qty: row.qty,
-    fromProjectId: row.from_project_id,
-    toProjectId: row.to_project_id,
+    qty: Number(row.qty),
+    fromProjectId: row.from_project_id ? Number(row.from_project_id) : null,
+    toProjectId: row.to_project_id ? Number(row.to_project_id) : null,
     transferredBy: row.transferred_by,
     authorizedBy: row.authorized_by,
     notes: row.notes,

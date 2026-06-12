@@ -1,0 +1,60 @@
+Main inventory
+Units per active project, available stock and grand total — computed live.
+Total items
+35
+5 categories
+Initial stock
+125
+total units
+Total deployed
+0040300101020102041150810170330110611601040802200000000773001010101000202
+across 4 projects
+Zero available
+34
+items fully deployed
+Search items…
+
+All categories
+Sort
+Item	Initial stock	Conapto S4	GVX 03 - Gavle	North Copenhagen	test-project	Available	Total Deployed
+Office Use Items
+	Bench	4	4	—	—	—	0	04
+	Box File	3	3	—	—	—	0	03
+	Label Printers	1	—	—	—	—	1	0
+	Printers	1	1	—	—	—	0	01
+	Stapler	1	1	—	—	—	0	01
+	Table	2	2	—	—	—	0	02
+	White Board	1	1	—	—	—	0	01
+Safety Related Items
+	Barricades	2	2	—	—	—	0	02
+	Body Harness	20	4	11	5	—	-4095	04115
+	Ear Muffs	9	8	1	—	—	-72	081
+	Ear Muffs (Attachable)	8	1	—	7	—	-9	017
+	ESD Wrist Band	6	3	—	3	—	-27	033
+	First Aid	2	1	1	—	—	-9	011
+	Lanyards	23	6	11	6	—	-6093	06116
+	Mobile Scaffolding	1	1	—	—	—	0	01
+	Safety Poles	4	4	—	—	—	0	04
+	Scaffolding Bumpers	8	8	—	—	—	0	08
+Site Tools
+	Cable Comb	4	2	—	2	—	-18	022
+	Cable Tray Cutter	—	—	—	—	—	0	0
+	Electric Screwdriver (Hand Tool)	—	—	—	—	—	0	0
+	Hand Tool Batteries	—	—	—	—	—	0	0
+	Hand Tool Batteries Chargers	—	—	—	—	—	0	0
+	Laser Level Machine	—	—	—	—	—	0	0
+	Measuring Tape	—	—	—	—	—	0	0
+	Power Code	—	—	—	—	—	0	0
+	Scissors	17	7	7	3	—	-756	0773
+	Screw Driver	—	—	—	—	—	0	0
+	Tool Box	1	—	1	—	—	0	01
+	Tool Box Bag	1	—	1	—	—	0	01
+Termination Tools
+	Cable Cutter	1	1	—	—	—	0	01
+	Cable Tester	1	1	—	—	—	0	01
+	Crimping Tool	—	—	—	—	—	0	0
+Welfare
+	Coffee Machine	—	—	—	—	—	0	0
+	Heaters	2	2	—	—	—	0	02
+	Rice Cooker	2	2	—	—	—	0	02
+35 items · Updated just now

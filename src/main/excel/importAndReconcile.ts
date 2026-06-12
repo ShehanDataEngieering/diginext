@@ -45,10 +45,10 @@ async function resolveOrCreateItem(
 
 async function syncInitialStock(db: DatabaseAdapter, itemId: number): Promise<void> {
   const row = await db.queryOne(
-    'SELECT COUNT(*) as count FROM item_units WHERE item_id = ?',
+    'SELECT COUNT(*)::int as count FROM item_units WHERE item_id = ?',
     [itemId]
   )
-  const count = (row?.count as number) ?? 0
+  const count = Number(row?.count ?? 0)
   await db.query('UPDATE items SET initial_stock = MAX(initial_stock, ?) WHERE id = ?', [count, itemId])
 }
 

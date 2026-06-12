@@ -12,7 +12,7 @@ interface ProjectRow {
 
 function toProject(row: ProjectRow): Project {
   return {
-    id: row.id,
+    id: Number(row.id),
     name: row.name,
     location: row.location,
     updatedBy: row.updated_by,

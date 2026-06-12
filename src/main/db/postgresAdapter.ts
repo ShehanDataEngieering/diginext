@@ -41,7 +41,7 @@ export class PostgresAdapter implements DatabaseAdapter {
         : 0
       return {
         rows,
-        rowCount: result.rowCount ?? 0,
+        rowCount: Number(result.rowCount ?? 0),
         lastInsertRowid
       }
     } finally {

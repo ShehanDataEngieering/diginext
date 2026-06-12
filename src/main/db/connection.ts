@@ -114,7 +114,7 @@ async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
   const applied = new Set(
     (await pg.query('SELECT version FROM schema_migrations'))
       .rows
-      .map((row) => row.version as number)
+      .map((row) => Number(row.version))
   )
 
   if (!applied.has(1)) {

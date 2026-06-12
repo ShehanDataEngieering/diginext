@@ -1,0 +1,126 @@
+item_id,serial_id,assigned_project_id,audit_date,remarks,status
+1,"DG/26/CT/04",1,"2026-04-07","Contain 2 parts",In Use
+2,,1,"2026-04-07","qty-1",In Use
+4,"DN 11",3,"2026-04-14","3M",In Use
+4,"DN 13",3,"2026-04-14","3M",In Use
+4,"DN 31",3,"2026-04-14","3M",In Use
+4,"DN 52",3,"2026-04-14","Honeywell",In Use
+4,"DN 60",3,"2026-04-14","Honeywell",In Use
+4,"DN-06",2,,,In Use
+4,"DN-16",2,,,In Use
+4,"DN-05",2,,,In Use
+4,"DN-59",2,,,In Use
+4,"DN-10",2,,,In Use
+4,"DN-01",2,,"Rename DN07",In Use
+4,"043",2,,,In Use
+4,"0134",2,,,In Use
+4,"DN-02",2,,,In Use
+4,"DN 1068",2,,,In Use
+4,"DN 1024",2,,,In Use
+4,"DN 135",1,"2026-04-07","Cresto",In Use
+4,"DN 273",1,"2026-04-07","Honeywell",In Use
+4,"DN 282",1,"2026-04-07","Honeywell",In Use
+4,"DN 023",1,"2026-04-07","K.S ONE",In Use
+5,"LY 053",3,"2026-04-14","Honeywell Double",In Use
+5,"LY 010",3,"2026-04-14",,In Use
+5,"LY 044",3,"2026-04-14",,In Use
+5,"LY 045",3,"2026-04-14",,In Use
+5,"LY 005",3,"2026-04-14",,In Use
+5,"LY 361",3,"2026-04-14",,In Use
+5,"001",2,,,In Use
+5,"0249",2,,,In Use
+5,"87039018",2,,,In Use
+5,"009",2,,,In Use
+5,"0044",2,,,In Use
+5,"043-L",2,,,In Use
+5,"0171",2,,,In Use
+5,"007",2,,,In Use
+5,"004",2,,,In Use
+5,"008",2,,,In Use
+5,"340",2,,,In Use
+5,"LY 006",1,"2026-04-07",,In Use
+5,"LY 014",1,"2026-04-07",,In Use
+5,"LY 020",1,"2026-04-07",,In Use
+5,"LY 049",1,"2026-04-07",,In Use
+5,"LY 132",1,"2026-04-07",,In Use
+5,"LY 200",1,"2026-04-07",,In Use
+6,"DG/26/MS-01",1,"2026-04-07",,In Use
+7,"DG/25/BG-01",1,"2026-04-07",,In Use
+7,"DG/25/BG-02",1,"2026-04-07",,In Use
+8,"DG/26/SP-01",1,"2026-04-07",,In Use
+8,"DG/26/SP-02",1,"2026-04-07",,In Use
+8,"DG/26/SP-03",1,"2026-04-07",,In Use
+8,"DG/26/SP-04",1,"2026-04-07",,In Use
+9,,3,"2026-04-14","qty-1",In Use
+9,,1,"2026-04-07","qty-1",In Use
+10,,2,,"qty-1",In Use
+10,,1,"2026-04-07","qty-1",In Use
+11,"DG25MB01",2,,,In Use
+11,"DG/26/FA-01",1,"2026-04-07",,In Use
+12,,1,"2026-04-07","qty-1",In Use
+13,,3,"2026-04-14","qty-1",In Use
+13,,1,"2026-04-07","qty-1",In Use
+17,"DG/26/CC-03",3,"2026-04-14",,In Use
+17,"DG/26/CC-04",3,"2026-04-14",,In Use
+17,"DG/26/CC-01",1,"2026-04-07",,In Use
+17,"DG/26/CC-02",1,"2026-04-07",,In Use
+20,"DG/25/TB 02",2,,,In Use
+21,"DG/25/TB 01",2,,,In Use
+22,,3,"2026-04-14","qty-1",In Use
+22,,2,,"qty-1",In Use
+22,,1,"2026-04-07","qty-1",In Use
+26,,1,"2026-04-07","qty-1",In Use
+28,,1,"2026-04-07","qty-1",In Use
+29,,1,"2026-04-07","qty-1",In Use
+30,"DG/25/C01",1,"2026-04-07",,In Use
+30,"DG/25/C02",1,"2026-04-07",,In Use
+30,"DG/25/C03",1,"2026-04-07",,In Use
+30,"DG/25/C04",1,"2026-04-07",,In Use
+31,"DG/25/T01",1,"2026-04-07",,In Use
+31,"DG/25/T02",1,"2026-04-07",,In Use
+32,,1,"2026-04-07","qty-1",In Use
+33,"DG/26/RC-01",1,"2026-04-07",,In Use
+33,"DG/26/RC-02",1,"2026-04-07",,In Use
+34,"DG/25/HR-01",1,"2026-04-07",,In Use
+34,"DG/25/HR-02",1,"2026-04-07",,In Use
+9,,3,,"qty-2",In Use
+9,,3,,"qty-3",In Use
+9,,3,,"qty-4",In Use
+9,,3,,"qty-5",In Use
+9,,3,,"qty-6",In Use
+9,,3,,"qty-7",In Use
+10,,1,,"qty-2",In Use
+10,,1,,"qty-3",In Use
+10,,1,,"qty-4",In Use
+10,,1,,"qty-5",In Use
+10,,1,,"qty-6",In Use
+10,,1,,"qty-7",In Use
+10,,1,,"qty-8",In Use
+12,,1,,"qty-2",In Use
+12,,1,,"qty-3",In Use
+12,,1,,"qty-4",In Use
+12,,1,,"qty-5",In Use
+12,,1,,"qty-6",In Use
+12,,1,,"qty-7",In Use
+12,,1,,"qty-8",In Use
+13,,3,,"qty-2",In Use
+13,,3,,"qty-3",In Use
+13,,1,,"qty-2",In Use
+13,,1,,"qty-3",In Use
+22,,3,,"qty-2",In Use
+22,,3,,"qty-3",In Use
+22,,2,,"qty-2",In Use
+22,,2,,"qty-3",In Use
+22,,2,,"qty-4",In Use
+22,,2,,"qty-5",In Use
+22,,2,,"qty-6",In Use
+22,,2,,"qty-7",In Use
+22,,1,,"qty-2",In Use
+22,,1,,"qty-3",In Use
+22,,1,,"qty-4",In Use
+22,,1,,"qty-5",In Use
+22,,1,,"qty-6",In Use
+22,,1,,"qty-7",In Use
+27,,,,"qty-1",Available
+32,,1,,"qty-2",In Use
+32,,1,,"qty-3",In Use

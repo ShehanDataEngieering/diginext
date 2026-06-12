@@ -24,7 +24,7 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
   const items = itemRows as unknown as ItemRow[]
 
   const { rows: countRows } = await db.query(
-    `SELECT item_id, assigned_project_id, COUNT(*) AS count
+    `SELECT item_id, assigned_project_id, COUNT(*)::int AS count
      FROM item_units
      GROUP BY item_id, assigned_project_id`
   )
@@ -37,7 +37,7 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
       perProject = new Map()
       countsByItem.set(item_id, perProject)
     }
-    perProject.set(assigned_project_id, count)
+    perProject.set(assigned_project_id, Number(count))
   }
 
   const activeProjectIds = new Set(projects.map((p) => p.id))

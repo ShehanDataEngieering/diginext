@@ -1,0 +1,36 @@
+id,category,name,initial_stock
+1,"Termination Tools","Cable Tester",1
+2,"Termination Tools","Cable Cutter",1
+3,"Termination Tools","Crimping Tool",0
+4,"Safety Related Items","Body Harness",20
+5,"Safety Related Items","Lanyards",23
+6,"Safety Related Items","Mobile Scaffolding",1
+7,"Safety Related Items","Barricades",2
+8,"Safety Related Items","Safety Poles",4
+9,"Safety Related Items","Ear Muffs (Attachable)",8
+10,"Safety Related Items","Ear Muffs",9
+11,"Safety Related Items","First Aid",2
+12,"Safety Related Items","Scaffolding Bumpers",8
+13,"Safety Related Items","ESD Wrist Band",6
+14,"Site Tools","Screw Driver",0
+15,"Site Tools","Electric Screwdriver (Hand Tool)",0
+16,"Site Tools","Cable Tray Cutter",0
+17,"Site Tools","Cable Comb",4
+18,"Site Tools","Hand Tool Batteries",0
+19,"Site Tools","Hand Tool Batteries Chargers",0
+20,"Site Tools","Tool Box Bag",1
+21,"Site Tools","Tool Box",1
+22,"Site Tools","Scissors",17
+23,"Site Tools","Power Code",0
+24,"Site Tools","Measuring Tape",0
+25,"Site Tools","Laser Level Machine",0
+26,"Office Use Items","Printers",1
+27,"Office Use Items","Label Printers",1
+28,"Office Use Items","White Board",1
+29,"Office Use Items","Stapler",1
+30,"Office Use Items","Bench",4
+31,"Office Use Items","Table",2
+32,"Office Use Items","Box File",3
+33,"Welfare","Rice Cooker",2
+34,"Welfare","Heaters",2
+35,"Welfare","Coffee Machine",0

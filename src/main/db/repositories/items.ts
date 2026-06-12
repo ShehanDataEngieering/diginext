@@ -9,7 +9,7 @@ interface ItemRow {
 }
 
 function toItem(row: ItemRow): Item {
-  return { id: row.id, category: row.category, name: row.name, initialStock: row.initial_stock }
+  return { id: Number(row.id), category: row.category, name: row.name, initialStock: Number(row.initial_stock) }
 }
 
 export async function listItems(db: DatabaseAdapter): Promise<Item[]> {

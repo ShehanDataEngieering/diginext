@@ -8,8 +8,8 @@ export async function maybeSeedFromMasterInventory(db: DatabaseAdapter): Promise
   const path = process.env.SEED_XLSX_PATH
   if (!path) return
 
-  const row = await db.queryOne('SELECT COUNT(*) AS count FROM items')
-  const count = (row?.count as number) ?? 0
+  const row = await db.queryOne('SELECT COUNT(*)::int AS count FROM items')
+  const count = Number(row?.count ?? 0)
   if (count > 0) return
 
   if (!existsSync(path)) {

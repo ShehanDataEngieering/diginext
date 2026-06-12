@@ -191,9 +191,117 @@ export function parseProjects(workbook: WorkBook, units: ParsedUnit[]): ParsedPr
   }))
 }
 
+interface MainInventoryAllocation {
+  itemNo: string
+  allocations: Record<string, number>
+  available: number
+}
+
+function parseMainInventoryAllocations(workbook: WorkBook): {
+  allocations: MainInventoryAllocation[]
+  projectColumns: { name: string; colIndex: number }[]
+} {
+  const rows = sheetRows(workbook, MAIN_INVENTORY_SHEET)
+  let headerRowIndex = -1
+  const projectColumns: { name: string; colIndex: number }[] = []
+  let availableColIndex = -1
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (cell(row, 0) === 'No' && cell(row, 1) === 'Category') {
+      headerRowIndex = i
+      for (let col = 4; col < row.length; col++) {
+        const header = cell(row, col)
+        if (header.includes('↗')) {
+          const name = header.replace(/\s*↗\s*$/, '').trim()
+          projectColumns.push({ name, colIndex: col })
+        } else if (header.includes('Available')) {
+          availableColIndex = col
+        }
+      }
+      break
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    return { allocations: [], projectColumns: [] }
+  }
+
+  const allocations: MainInventoryAllocation[] = []
+  for (let i = headerRowIndex + 1; i < rows.length; i++) {
+    const row = rows[i]
+    const itemNo = cell(row, 0)
+    if (!/^\d+$/.test(itemNo)) continue
+
+    const alloc: Record<string, number> = {}
+    for (const { name, colIndex } of projectColumns) {
+      alloc[name] = Number.parseInt(cell(row, colIndex), 10) || 0
+    }
+
+    const available = availableColIndex >= 0 ? Number.parseInt(cell(row, availableColIndex), 10) || 0 : 0
+    allocations.push({ itemNo, allocations: alloc, available })
+  }
+
+  return { allocations, projectColumns }
+}
+
+function fillQuantityGaps(
+  units: ParsedUnit[],
+  allocations: MainInventoryAllocation[]
+): ParsedUnit[] {
+  const countsByItemProject = new Map<string, Map<string | null, number>>()
+  for (const unit of units) {
+    let perProject = countsByItemProject.get(unit.itemNo)
+    if (!perProject) {
+      perProject = new Map()
+      countsByItemProject.set(unit.itemNo, perProject)
+    }
+    perProject.set(unit.projectName, (perProject.get(unit.projectName) ?? 0) + 1)
+  }
+
+  const gapUnits: ParsedUnit[] = []
+
+  for (const alloc of allocations) {
+    const perProject = countsByItemProject.get(alloc.itemNo) ?? new Map()
+
+    for (const [projectName, expectedCount] of Object.entries(alloc.allocations)) {
+      const actualCount = perProject.get(projectName) ?? 0
+      const gap = expectedCount - actualCount
+      for (let i = 0; i < gap; i++) {
+        gapUnits.push({
+          itemNo: alloc.itemNo,
+          projectName,
+          serialId: null,
+          auditDate: null,
+          remarks: null,
+          status: 'In Use'
+        })
+      }
+    }
+
+    const actualAvailable = perProject.get(null) ?? 0
+    const availableGap = alloc.available - actualAvailable
+    for (let i = 0; i < availableGap; i++) {
+      gapUnits.push({
+        itemNo: alloc.itemNo,
+        projectName: null,
+        serialId: null,
+        auditDate: null,
+        remarks: null,
+        status: 'Available'
+      })
+    }
+  }
+
+  return gapUnits
+}
+
 export function parseMasterInventory(workbook: WorkBook): ParsedMasterInventory {
   const items = parseItems(workbook)
-  const units = parseUnits(workbook)
+  const serializedUnits = parseUnits(workbook)
+  const { allocations } = parseMainInventoryAllocations(workbook)
+  const gapUnits = fillQuantityGaps(serializedUnits, allocations)
+  const units = [...serializedUnits, ...gapUnits]
   const projects = parseProjects(workbook, units)
   return { projects, items, units }
 }
