@@ -82,22 +82,23 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
     const previous = await getItemUnitById(db, id)
     const updated = await updateItemUnit(db, id, input)
     if (previous && previous.photoEvidenceRef !== updated.photoEvidenceRef) {
-      deleteManagedPhoto(previous.photoEvidenceRef)
+      await deleteManagedPhoto(previous.photoEvidenceRef)
     }
     return updated
   })
   ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, async (_event, id: number) => {
     const existing = await getItemUnitById(db, id)
     await deleteItemUnit(db, id)
-    if (existing) deleteManagedPhoto(existing.photoEvidenceRef)
+    if (existing) await deleteManagedPhoto(existing.photoEvidenceRef)
   })
 
   ipcMain.handle(IPC_CHANNELS.dashboardRollup, () => getDashboardRollup(db))
 
-  ipcMain.handle(IPC_CHANNELS.photosImport, (_event, sourcePath: string): PhotoImportResult => {
-    return { reference: importPhoto(sourcePath) }
+  ipcMain.handle(IPC_CHANNELS.photosImport, async (_event, sourcePath: string): Promise<PhotoImportResult> => {
+    const reference = await importPhoto(sourcePath)
+    return { reference }
   })
-  ipcMain.handle(IPC_CHANNELS.photosRead, (_event, reference: string): string | null => {
+  ipcMain.handle(IPC_CHANNELS.photosRead, async (_event, reference: string): Promise<string | null> => {
     return readPhotoDataUrl(reference)
   })
 
