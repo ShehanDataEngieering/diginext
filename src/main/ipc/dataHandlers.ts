@@ -8,12 +8,14 @@ import type {
 } from '../db/adapter'
 import type {
   ExportProjectResult,
+  HandoverInput,
   ItemInput,
   ItemUnitFilter,
   ItemUnitInput,
   PhotoImportResult,
   ProjectInput,
-  ProjectStatus
+  ProjectStatus,
+  TransferInput
 } from '../../shared/ipc'
 import {
   createProject,
@@ -31,7 +33,8 @@ import {
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
-import { listTransfers, getTransfersByProject } from '../db/repositories/transfers'
+import { listTransfers, getTransfersByProject, createTransfer } from '../db/repositories/transfers'
+import { listHandovers, getHandoversByProject, createHandover } from '../db/repositories/handovers'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
 import { importAndReconcile } from '../excel/importAndReconcile'
 import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
@@ -137,5 +140,14 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.transfersList, () => listTransfers(db))
   ipcMain.handle(IPC_CHANNELS.transfersByProject, (_event, projectId: number) =>
     getTransfersByProject(db, projectId)
+  )
+  ipcMain.handle(IPC_CHANNELS.transfersCreate, (_event, input: TransferInput) => createTransfer(db, input))
+
+  ipcMain.handle(IPC_CHANNELS.handoversList, () => listHandovers(db))
+  ipcMain.handle(IPC_CHANNELS.handoversByProject, (_event, projectId: number) =>
+    getHandoversByProject(db, projectId)
+  )
+  ipcMain.handle(IPC_CHANNELS.handoversCreate, (_event, input: HandoverInput) =>
+    createHandover(db, input)
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pencil, Plus, Trash2, Search } from 'lucide-react'
+import { ArrowRightLeft, Pencil, Plus, Trash2, Search } from 'lucide-react'
 import type {
   Item,
   ItemUnitInput,
@@ -84,6 +84,10 @@ export function ItemUnitsPage({
   const [dialogUnit, setDialogUnit] = useState<ItemUnitWithDetails | 'new' | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [transferUnit, setTransferUnit] = useState<ItemUnitWithDetails | null>(null)
+  const [transferProjectId, setTransferProjectId] = useState(UNASSIGNED)
+  const [transferNotes, setTransferNotes] = useState('')
+  const [transferring, setTransferring] = useState(false)
 
   // Filters — match the per-item / per-project drill-down the dashboard rollup implies.
   const [itemFilter, setItemFilter] = useState(ALL)
@@ -167,6 +171,48 @@ export function ItemUnitsPage({
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function openTransfer(unit: ItemUnitWithDetails): void {
+    setTransferUnit(unit)
+    setTransferProjectId(UNASSIGNED)
+    setTransferNotes('')
+  }
+
+  async function handleTransfer(): Promise<void> {
+    if (!transferUnit) return
+    const toProjectId = transferProjectId === UNASSIGNED ? null : Number(transferProjectId)
+    setTransferring(true)
+    setError(null)
+    try {
+      await window.api.itemUnits.update(transferUnit.id, {
+        itemId: transferUnit.itemId,
+        serialId: transferUnit.serialId,
+        assignedProjectId: toProjectId,
+        auditDate: transferUnit.auditDate,
+        remarks: transferUnit.remarks,
+        status: transferUnit.status,
+        photoEvidenceRef: transferUnit.photoEvidenceRef
+      })
+      await window.api.transfers.create({
+        date: new Date().toISOString().slice(0, 10),
+        itemId: transferUnit.itemId,
+        serialId: transferUnit.serialId,
+        qty: 1,
+        fromProjectId: transferUnit.assignedProjectId,
+        toProjectId,
+        transferredBy: null,
+        authorizedBy: null,
+        notes: transferNotes.trim() || null,
+        status: 'Completed'
+      })
+      setTransferUnit(null)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTransferring(false)
     }
   }
 
@@ -279,6 +325,9 @@ export function ItemUnitsPage({
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" title="Transfer to…" onClick={() => openTransfer(unit)}>
+                      <ArrowRightLeft />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(unit)}>
                       <Pencil />
                     </Button>
@@ -405,6 +454,59 @@ export function ItemUnitsPage({
             </Button>
             <Button onClick={handleSave} disabled={saving || !form.itemId}>
               {dialogUnit === 'new' ? 'Create' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={transferUnit !== null} onOpenChange={(open) => !open && setTransferUnit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer to…</DialogTitle>
+            <DialogDescription>
+              {transferUnit
+                ? `${transferUnit.serialId ?? `Unit #${transferUnit.id}`} (${transferUnit.itemName}) — currently ${
+                    transferUnit.projectName ?? 'Available'
+                  }`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Destination project</Label>
+              <Select value={transferProjectId} onValueChange={setTransferProjectId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Available (unassigned)</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                      {project.status === 'completed' ? ' (completed)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="transfer-notes">Notes</Label>
+              <Input
+                id="transfer-notes"
+                value={transferNotes}
+                onChange={(e) => setTransferNotes(e.target.value)}
+                placeholder="Optional notes for the transfer log"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferUnit(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleTransfer} disabled={transferring}>
+              Transfer
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -31,7 +31,12 @@ export const IPC_CHANNELS = {
   photosRead: 'photos:read',
 
   transfersList: 'transfers:list',
-  transfersByProject: 'transfers:by-project'
+  transfersByProject: 'transfers:by-project',
+  transfersCreate: 'transfers:create',
+
+  handoversList: 'handovers:list',
+  handoversByProject: 'handovers:by-project',
+  handoversCreate: 'handovers:create'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
@@ -205,4 +210,46 @@ export interface ImportDetail {
   fromProject?: string
   toProject?: string
   notes?: string
+}
+
+export interface HandoverItem {
+  id: number
+  handoverId: number
+  itemUnitId: number
+  serialId: string | null
+  itemName: string | null
+  itemCategory: string | null
+  condition: string | null
+  action: string | null
+  transferProjectId: number | null
+  transferProjectName: string | null
+}
+
+export interface HandoverItemInput {
+  itemUnitId: number
+  condition: string | null
+  action: string | null
+  transferProjectId: number | null
+}
+
+export interface Handover {
+  id: number
+  projectId: number
+  projectName: string | null
+  handoverDate: string
+  handedOverBy: string | null
+  receivedBy: string | null
+  notes: string | null
+  signatureRef: string | null
+  items: HandoverItem[]
+}
+
+export interface HandoverInput {
+  projectId: number
+  handoverDate: string
+  handedOverBy: string | null
+  receivedBy: string | null
+  notes: string | null
+  signatureRef: string | null
+  items: HandoverItemInput[]
 }

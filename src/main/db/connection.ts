@@ -103,6 +103,17 @@ async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
     )
   `)
 
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS handover_items (
+      id                  SERIAL PRIMARY KEY,
+      handover_id         INTEGER NOT NULL REFERENCES handovers(id) ON DELETE CASCADE,
+      item_unit_id        INTEGER NOT NULL REFERENCES item_units(id) ON DELETE RESTRICT,
+      condition           TEXT,
+      action              TEXT,
+      transfer_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
+    )
+  `)
+
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_item_id ON item_units(item_id)`)
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_project_id ON item_units(assigned_project_id)`)
   await pg.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_item_units_serial_id ON item_units(serial_id) WHERE serial_id IS NOT NULL`)
@@ -110,6 +121,8 @@ async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_transfers_from_project ON transfers(from_project_id)`)
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_transfers_to_project ON transfers(to_project_id)`)
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_handovers_project_id ON handovers(project_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_handover_items_handover_id ON handover_items(handover_id)`)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_handover_items_item_unit_id ON handover_items(item_unit_id)`)
 
   const applied = new Set(
     (await pg.query('SELECT version FROM schema_migrations'))

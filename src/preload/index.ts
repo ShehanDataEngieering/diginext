@@ -4,6 +4,8 @@ import {
   BackupInfo,
   DashboardRollup,
   ExportProjectResult,
+  Handover,
+  HandoverInput,
   ImportSummary,
   IPC_CHANNELS,
   Item,
@@ -15,7 +17,8 @@ import {
   Project,
   ProjectInput,
   ProjectStatus,
-  Transfer
+  Transfer,
+  TransferInput
 } from '../shared/ipc'
 
 // Extended by later milestones with typed IPC calls (item/project CRUD, Excel
@@ -78,7 +81,16 @@ const api = {
   transfers: {
     list: (): Promise<Transfer[]> => ipcRenderer.invoke(IPC_CHANNELS.transfersList),
     byProject: (projectId: number): Promise<Transfer[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.transfersByProject, projectId)
+      ipcRenderer.invoke(IPC_CHANNELS.transfersByProject, projectId),
+    create: (input: TransferInput): Promise<Transfer> =>
+      ipcRenderer.invoke(IPC_CHANNELS.transfersCreate, input)
+  },
+  handovers: {
+    list: (): Promise<Handover[]> => ipcRenderer.invoke(IPC_CHANNELS.handoversList),
+    byProject: (projectId: number): Promise<Handover[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.handoversByProject, projectId),
+    create: (input: HandoverInput): Promise<Handover> =>
+      ipcRenderer.invoke(IPC_CHANNELS.handoversCreate, input)
   },
   photos: {
     // Resolves a dropped `File` to its absolute filesystem path. Post-Electron
