@@ -6,15 +6,25 @@ directories:
 files:
   - out/**/*
   - package.json
-  - from: .env
-    to: .env
+extraResources:
   - from: .env
     to: .env
 win:
   target:
+    - target: nsis
+      arch:
+        - x64
     - target: portable
       arch:
         - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: InventoryManager
 
 # macOS build — must be run *on* macOS (electron-builder shells out to native
 # tools like hdiutil for the .dmg, and the bundled better-sqlite3-multiple-
