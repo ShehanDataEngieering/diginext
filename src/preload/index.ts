@@ -14,6 +14,8 @@ import {
   ItemUnitInput,
   ItemUnitWithDetails,
   PhotoImportResult,
+  PhotoLogEntry,
+  PhotoLogEntryInput,
   Project,
   ProjectInput,
   ProjectStatus,
@@ -110,6 +112,12 @@ const api = {
     // old free-text values some seeded units carry).
     read: (reference: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.photosRead, reference)
+  },
+  photoLog: {
+    list: (): Promise<PhotoLogEntry[]> => ipcRenderer.invoke(IPC_CHANNELS.photoLogList),
+    create: (input: PhotoLogEntryInput): Promise<PhotoLogEntry> =>
+      ipcRenderer.invoke(IPC_CHANNELS.photoLogCreate, input),
+    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.photoLogDelete, id)
   }
 }
 

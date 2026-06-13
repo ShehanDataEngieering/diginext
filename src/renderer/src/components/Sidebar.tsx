@@ -1,4 +1,14 @@
-import { Boxes, Camera, Gauge, FolderKanban, Package, Settings, LogOut } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  Boxes,
+  Camera,
+  ClipboardCheck,
+  Gauge,
+  FolderKanban,
+  Package,
+  Settings,
+  LogOut
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@shared/ipc'
 import { supabase } from '@/auth/supabaseClient'
@@ -20,8 +30,8 @@ const VIEW_ITEMS: { tab: ViewTab; label: string; icon: typeof Gauge }[] = [
   { tab: 'projects', label: 'Projects', icon: FolderKanban },
   { tab: 'item-units', label: 'Item units', icon: Boxes },
   { tab: 'photo-log', label: 'Photo Log', icon: Camera },
-  { tab: 'transfers', label: 'Transfers', icon: Package },
-  { tab: 'handovers', label: 'Handovers', icon: FolderKanban },
+  { tab: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
+  { tab: 'handovers', label: 'Handovers', icon: ClipboardCheck },
   { tab: 'settings', label: 'Settings', icon: Settings }
 ]
 
@@ -49,7 +59,7 @@ function categoryDotClass(category: string): string {
 
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="px-2.5 pt-3 pb-1 text-[10px] font-semibold tracking-widest text-gray-400 uppercase">
+    <div className="mb-1 px-3 pt-4 text-xs font-medium tracking-wider text-[#AEAEB2] uppercase first:pt-2">
       {children}
     </div>
   )
@@ -75,8 +85,10 @@ function NavRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'mx-1.5 flex w-[calc(100%-12px)] items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors',
-        active ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'
+        'mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors duration-150',
+        active
+          ? 'bg-[#DCE8F8] font-medium text-[#0066CC]'
+          : 'text-[#1D1D1F] hover:bg-[#E8E8ED]'
       )}
     >
       {dot}
@@ -85,8 +97,8 @@ function NavRow({
       {badge !== undefined && (
         <span
           className={cn(
-            'ml-auto shrink-0 rounded-full px-1.5 py-0 text-[10px]',
-            active ? 'bg-white/20 text-white' : 'bg-gray-300 text-gray-500'
+            'ml-auto shrink-0 rounded-full px-1.5 text-xs tabular-nums',
+            active ? 'bg-[#0066CC]/10 text-[#0066CC]' : 'bg-[#E5E5E5] text-[#6E6E73]'
           )}
         >
           {badge}
@@ -114,30 +126,20 @@ export function Sidebar({
   const activeProjects = projects.filter((p) => p.status === 'active')
 
   return (
-    <nav className="flex h-full w-[175px] shrink-0 flex-col overflow-y-auto border-r border-gray-200 bg-[#F5F5F5] py-1">
+    <nav className="flex h-full w-[220px] shrink-0 flex-col overflow-y-auto border-r border-[#E5E5E5] bg-[#F5F5F7] py-2">
       <SectionLabel>Views</SectionLabel>
       {VIEW_ITEMS.map(({ tab, label, icon: Icon }) => (
         <NavRow
           key={tab}
           active={activeTab === tab}
           onClick={() => onSelectView(tab)}
-          icon={<Icon size={15} />}
+          icon={<Icon size={16} strokeWidth={1.5} className="shrink-0 text-current" />}
           label={label}
           badge={
             tab === 'dashboard' ? itemCount : tab === 'projects' ? projects.length : undefined
           }
         />
       ))}
-
-      <div className="mt-auto p-2">
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-gray-500 hover:bg-gray-200"
-        >
-          <LogOut size={15} />
-          <span>Sign Out</span>
-        </button>
-      </div>
 
       {activeProjects.length > 0 && (
         <>
@@ -167,6 +169,16 @@ export function Sidebar({
           ))}
         </>
       )}
+
+      <div className="mt-auto border-t border-[#E5E5E5] pt-2 pb-1">
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-[#6E6E73] transition-colors duration-150 hover:bg-[#E8E8ED]"
+        >
+          <LogOut size={16} strokeWidth={1.5} />
+          <span>Sign Out</span>
+        </button>
+      </div>
     </nav>
   )
 }

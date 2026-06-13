@@ -105,9 +105,11 @@ The renderer has **zero** direct access to Node.js, the filesystem, or the datab
   3. `src/preload/index.ts` — add the method to the `api` object
   4. `src/preload/electron-api.d.ts` — add the type signature to the `Api` interface
 
-### 2. No native file dialogs in the renderer
+### 2. Native file dialogs: `dialog.showSaveDialog` is banned, `<input type="file">` is allowed
 
-`dialog.showSaveDialog` and `<input type="file">` both **freeze the entire app** under WSLg (Windows Subsystem for Linux with GUI). They are banned. The only file-input method is drag-and-drop via `PhotoDropField.tsx`. Excel exports write to a fixed folder under Documents — no save-as picker.
+`dialog.showSaveDialog` **freezes the entire app** under WSLg (Windows Subsystem for Linux with GUI) and is banned — Excel exports write to a fixed folder under Documents, no save-as picker.
+
+`<input type="file">` was previously banned for the same reason, but on native Windows builds it does **not** freeze the app. `PhotoDropField.tsx` now offers both drag-and-drop and a "Browse…" button backed by `<input type="file">`. If this is reintroduced on a WSLg dev setup and causes freezing again, gate the Browse button behind a platform check rather than removing it outright.
 
 ### 3. Drag-and-drop photo path extraction
 

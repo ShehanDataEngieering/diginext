@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Item, Project } from '@shared/ipc'
 import { AuthGate } from './auth/AuthGate'
 import { Sidebar, type ViewTab } from './components/Sidebar'
-import { TitleBar } from './components/TitleBar'
 import { DashboardPage } from './pages/DashboardPage'
 import { ItemsPage } from './pages/ItemsPage'
 import { ItemUnitsPage } from './pages/ItemUnitsPage'
@@ -47,16 +46,10 @@ function App() {
   )
 
   // Counter-based "signals" rather than booleans: lets the same action (e.g.
-  // clicking "Add item" twice, or the same sidebar project twice) re-trigger
-  // the target page's effect even though the value "didn't change".
-  const [addItemSignal, setAddItemSignal] = useState(0)
+  // selecting the same sidebar project twice) re-trigger the target page's
+  // effect even though the value "didn't change".
   const [categorySeed, setCategorySeed] = useState<{ category: string; nonce: number } | null>(null)
   const [projectSeed, setProjectSeed] = useState<{ projectId: number; nonce: number } | null>(null)
-
-  function handleAddItem(): void {
-    setActiveTab('items')
-    setAddItemSignal((n) => n + 1)
-  }
 
   function handleSelectProject(projectId: number): void {
     setActiveTab('item-units')
@@ -84,8 +77,6 @@ function App() {
         className="flex h-screen w-screen flex-col overflow-hidden"
         style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" }}
       >
-        <TitleBar onAddItem={handleAddItem} />
-
         <div className="flex min-h-0 flex-1">
           <Sidebar
             activeTab={activeTab}
@@ -101,7 +92,7 @@ function App() {
             {activeTab === 'dashboard' && <DashboardPage categorySeed={categorySeed} />}
             {activeTab === 'items' && (
               <div className="h-full overflow-y-auto p-3.5">
-                <ItemsPage openCreateSignal={addItemSignal} />
+                <ItemsPage />
               </div>
             )}
             {activeTab === 'projects' && (
@@ -142,7 +133,7 @@ function App() {
           </main>
         </div>
 
-        <div className="flex h-[26px] shrink-0 items-center gap-2.5 border-t border-gray-200 bg-[#F5F5F5] px-3.5 text-[11px] text-gray-400">
+        <div className="flex h-[26px] shrink-0 items-center gap-2.5 border-t border-[#E5E5E5] bg-[#F5F5F7] px-3.5 text-[11px] text-[#AEAEB2]">
           {activeTab === 'dashboard' && <span>{shellItems.length} items · Updated just now</span>}
           {activeTab === 'items' && <span>{shellItems.length} items · Updated just now</span>}
           {activeTab === 'projects' && <span>{shellProjects.length} projects · Updated just now</span>}

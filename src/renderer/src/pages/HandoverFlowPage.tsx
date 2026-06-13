@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 const CONDITIONS = ['Good', 'Damaged', 'Needs Repair', 'Lost']
 
@@ -184,10 +183,10 @@ export function HandoverFlowPage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h2 className="text-lg font-semibold">New handover</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="text-base font-semibold text-[#1D1D1F]">New handover</h2>
+        <p className="mt-0.5 text-xs text-[#6E6E73]">
           Record a hand-over of all units currently assigned to a project — set the condition and
           follow-up action for each unit. Submitting marks the project as completed.
         </p>
@@ -196,11 +195,11 @@ export function HandoverFlowPage({
       {error && <p className="text-destructive text-sm">{error}</p>}
       {success && <p className="text-sm text-emerald-600">{success}</p>}
 
-      <div className="flex flex-wrap gap-3">
-        <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-2 gap-3 rounded-md border border-[#E5E5E5] bg-white p-4 lg:grid-cols-5">
+        <div className="flex flex-col gap-1">
           <Label>Project</Label>
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-56">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Choose a project" />
             </SelectTrigger>
             <SelectContent>
@@ -214,64 +213,64 @@ export function HandoverFlowPage({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label htmlFor="handover-date">Date</Label>
           <Input
             id="handover-date"
             type="date"
             value={handoverDate}
             onChange={(e) => setHandoverDate(e.target.value)}
-            className="w-40"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label htmlFor="handed-over-by">Handed over by</Label>
           <Input
             id="handed-over-by"
             value={handedOverBy}
             onChange={(e) => setHandedOverBy(e.target.value)}
-            className="w-48"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label htmlFor="received-by">Received by</Label>
           <Input
             id="received-by"
             value={receivedBy}
             onChange={(e) => setReceivedBy(e.target.value)}
-            className="w-48"
           />
         </div>
-        <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <Label htmlFor="handover-notes">Notes</Label>
           <Input id="handover-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       </div>
 
-      <div className="rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Item</TableHead>
-              <TableHead>Serial / ID</TableHead>
-              <TableHead>Condition</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Destination</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {units.map((unit) => (
-              <TableRow key={unit.id}>
-                <TableCell>
-                  {unit.itemCategory} — {unit.itemName}
-                </TableCell>
-                <TableCell className="font-medium">{unit.serialId ?? '—'}</TableCell>
-                <TableCell>
+      <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-[#F5F5F7]">
+            <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
+              <th className="px-3 py-2 text-left">Item</th>
+              <th className="px-3 py-2 text-left">Serial / ID</th>
+              <th className="px-3 py-2 text-left">Condition</th>
+              <th className="px-3 py-2 text-left">Action</th>
+              <th className="px-3 py-2 text-left">Destination</th>
+            </tr>
+          </thead>
+          <tbody>
+            {units.map((unit, idx) => (
+              <tr
+                key={unit.id}
+                className={`border-t border-[#F0F0F0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}
+              >
+                <td className="px-3 py-2 text-[#6E6E73]">
+                  {unit.itemCategory} — <span className="text-[#1D1D1F]">{unit.itemName}</span>
+                </td>
+                <td className="px-3 py-2 font-medium text-[#1D1D1F]">{unit.serialId ?? '—'}</td>
+                <td className="px-3 py-2">
                   <Select
                     value={unitStates[unit.id]?.condition ?? ''}
                     onValueChange={(v) => updateUnitState(unit.id, 'condition', v)}
                   >
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="h-7 w-40 text-[13px]">
                       <SelectValue placeholder="Select…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -282,13 +281,13 @@ export function HandoverFlowPage({
                       ))}
                     </SelectContent>
                   </Select>
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="px-3 py-2">
                   <Select
                     value={unitStates[unit.id]?.action ?? ''}
                     onValueChange={(v) => updateUnitState(unit.id, 'action', v)}
                   >
-                    <SelectTrigger className="w-52">
+                    <SelectTrigger className="h-7 w-52 text-[13px]">
                       <SelectValue placeholder="Select…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,14 +298,14 @@ export function HandoverFlowPage({
                       ))}
                     </SelectContent>
                   </Select>
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="px-3 py-2">
                   {unitStates[unit.id]?.action === ACTION_TRANSFER ? (
                     <Select
                       value={unitStates[unit.id]?.destProjectId ?? UNASSIGNED}
                       onValueChange={(v) => updateUnitState(unit.id, 'destProjectId', v)}
                     >
-                      <SelectTrigger className="w-48">
+                      <SelectTrigger className="h-7 w-48 text-[13px]">
                         <SelectValue placeholder="Choose project…" />
                       </SelectTrigger>
                       <SelectContent>
@@ -321,27 +320,27 @@ export function HandoverFlowPage({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-[#D1D1D6]">—</span>
                   )}
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
             {projectId && units.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground text-center">
+              <tr>
+                <td colSpan={5} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
                   No units currently assigned to this project.
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             )}
             {!projectId && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground text-center">
+              <tr>
+                <td colSpan={5} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
                   Choose a project to list its assigned units.
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       <div className="flex justify-end">

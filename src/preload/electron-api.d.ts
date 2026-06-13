@@ -12,6 +12,8 @@ import type {
   ItemUnitInput,
   ItemUnitWithDetails,
   PhotoImportResult,
+  PhotoLogEntry,
+  PhotoLogEntryInput,
   Project,
   ProjectInput,
   ProjectStatus,
@@ -67,6 +69,11 @@ interface Api {
     pathForFile: (file: File) => string
     import: (sourcePath: string) => Promise<PhotoImportResult>
     read: (reference: string) => Promise<string | null>
+  }
+  photoLog: {
+    list: () => Promise<PhotoLogEntry[]>
+    create: (input: PhotoLogEntryInput) => Promise<PhotoLogEntry>
+    delete: (id: number) => Promise<void>
   }
 }
 

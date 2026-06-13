@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Item, ItemInput } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 // Known categories from the original Master_Inventory workbook — offered as
 // quick-pick suggestions, but the field stays free text since new categories
@@ -27,14 +27,7 @@ const KNOWN_CATEGORIES = [
 
 const emptyForm: ItemInput = { category: '', name: '', initialStock: 0 }
 
-export function ItemsPage({
-  openCreateSignal
-}: {
-  // Bumped by the titlebar's "Add item" button (see App.tsx / TitleBar.tsx)
-  // to open the create dialog from outside this page. A counter rather than
-  // a boolean so repeated clicks each re-open it even if already closed once.
-  openCreateSignal?: number
-} = {}): React.JSX.Element {
+export function ItemsPage(): React.JSX.Element {
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dialogItem, setDialogItem] = useState<Item | 'new' | null>(null)
@@ -52,11 +45,6 @@ export function ItemsPage({
   useEffect(() => {
     reload()
   }, [])
-
-  useEffect(() => {
-    if (openCreateSignal !== undefined && openCreateSignal > 0) openCreate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openCreateSignal])
 
   const categorySuggestions = useMemo(() => {
     const fromData = (items ?? []).map((item) => item.category)
@@ -105,72 +93,90 @@ export function ItemsPage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Items catalog</h2>
-          <p className="text-muted-foreground text-sm">
-            Item *types* — categories, names, and expected stock levels. Individually tracked
+          <h2 className="text-base font-semibold text-[#1D1D1F]">Items catalog</h2>
+          <p className="mt-0.5 text-xs text-[#6E6E73]">
+            Item types — categories, names, and expected stock levels. Individually tracked
             units live under Item Units.
           </p>
         </div>
         <Button onClick={openCreate}>
-          <Plus /> Add item
+          <Plus size={16} strokeWidth={1.5} /> Add item
         </Button>
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <div className="rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="text-right">Initial stock</TableHead>
-              <TableHead className="w-24" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items?.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>{item.category}</TableCell>
-                <TableCell className="font-medium">{item.name}</TableCell>
-                <TableCell className="text-right">{item.initialStock}</TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
-                      <Pencil />
+      <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-[#F5F5F7]">
+            <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
+              <th className="px-3 py-2 text-left">Category</th>
+              <th className="px-3 py-2 text-left">Name</th>
+              <th className="px-3 py-2 text-right">Initial stock</th>
+              <th className="w-24 px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {items?.map((item, idx) => (
+              <tr
+                key={item.id}
+                className={`group h-9 border-t border-[#F0F0F0] transition-colors duration-150 hover:bg-[#F0F6FF] ${
+                  idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'
+                }`}
+              >
+                <td className="px-3 py-2 text-[#6E6E73]">{item.category}</td>
+                <td className="px-3 py-2 font-medium text-[#1D1D1F]">{item.name}</td>
+                <td className="px-3 py-2 text-right text-[#1D1D1F] tabular-nums">{item.initialStock}</td>
+                <td className="px-3 py-2">
+                  <div className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)} title="Edit">
+                      <Pencil size={14} strokeWidth={1.5} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-                      <Trash2 />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-[#6E6E73] hover:text-red-600"
+                      onClick={() => handleDelete(item)}
+                      title="Delete"
+                    >
+                      <Trash2 size={14} strokeWidth={1.5} />
                     </Button>
                   </div>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
             {items?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground text-center">
-                  No items yet — add the first one.
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan={4} className="px-3 py-12 text-center">
+                  <Package size={40} strokeWidth={1.5} className="mx-auto mb-2 text-[#AEAEB2]" />
+                  <p className="text-sm font-medium text-[#1D1D1F]">No items yet</p>
+                  <p className="mt-0.5 mb-3 text-xs text-[#6E6E73]">
+                    Add your first item type to start tracking inventory.
+                  </p>
+                  <Button size="sm" onClick={openCreate}>
+                    <Plus size={14} strokeWidth={1.5} /> Add item
+                  </Button>
+                </td>
+              </tr>
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
-      <Dialog open={dialogItem !== null} onOpenChange={(open) => !open && setDialogItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{dialogItem === 'new' ? 'Add item' : 'Edit item'}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={dialogItem !== null} onOpenChange={(open) => !open && setDialogItem(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{dialogItem === 'new' ? 'Add item' : 'Edit item'}</SheetTitle>
+            <SheetDescription>
               Item type details. Individual serialized units are managed separately.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
+          <SheetBody className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
               <Label htmlFor="item-category">Category</Label>
               <Input
                 id="item-category"
@@ -185,39 +191,41 @@ export function ItemsPage({
                 ))}
               </datalist>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="item-name">Name</Label>
-              <Input
-                id="item-name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Body Harness"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="item-name">Name</Label>
+                <Input
+                  id="item-name"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Body Harness"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="item-stock">Initial stock</Label>
+                <Input
+                  id="item-stock"
+                  type="number"
+                  min={0}
+                  value={form.initialStock}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, initialStock: Number(e.target.value) || 0 }))
+                  }
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="item-stock">Initial stock</Label>
-              <Input
-                id="item-stock"
-                type="number"
-                min={0}
-                value={form.initialStock}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, initialStock: Number(e.target.value) || 0 }))
-                }
-              />
-            </div>
-          </div>
+          </SheetBody>
 
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" onClick={() => setDialogItem(null)}>
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || !form.category.trim() || !form.name.trim()}>
               {dialogItem === 'new' ? 'Create' : 'Save changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

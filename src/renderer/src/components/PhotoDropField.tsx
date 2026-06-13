@@ -1,11 +1,8 @@
-// Drag-and-drop photo attachment for the item-unit edit form. There is no
-// "browse…" fallback here — `<input type="file">` opens the same native (GTK)
-// picker that froze the whole app during Excel export under WSLg (see
-// dataHandlers.ts), so drag-and-drop onto the app window is the only file
-// input this app offers. `webUtils.getPathForFile` (bridged in preload)
-// resolves the dropped File to an absolute path for the main process to copy
-// into the managed photo store.
-import { useEffect, useState } from 'react'
+// Drag-and-drop (and "Browse…") photo attachment for the item-unit edit
+// form. `webUtils.getPathForFile` (bridged in preload) resolves the dropped
+// or selected File to an absolute path for the main process to copy into the
+// managed photo store.
+import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -26,6 +23,7 @@ export function PhotoDropField({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -83,20 +81,43 @@ export function PhotoDropField({
           <p className="text-muted-foreground">
             {busy
               ? 'Importing…'
-              : 'Drag and drop a photo here to attach it (JPG, PNG, GIF, WEBP, or BMP).'}
+              : 'Drag and drop a photo here, or browse, to attach it (JPG, PNG, GIF, WEBP, or BMP).'}
           </p>
-          {preview && !busy && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive w-fit"
-              onClick={() => onChange(null)}
-            >
-              <Trash2 /> Remove photo
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {!busy && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Browse…
+              </Button>
+            )}
+            {preview && !busy && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive w-fit"
+                onClick={() => onChange(null)}
+              >
+                <Trash2 /> Remove photo
+              </Button>
+            )}
+          </div>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/bmp"
+          className="hidden"
+          onChange={(event) => {
+            void handleFiles(event.target.files)
+            event.target.value = ''
+          }}
+        />
       </div>
       {error && <p className="text-destructive text-xs">{error}</p>}
     </div>

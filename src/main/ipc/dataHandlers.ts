@@ -13,6 +13,7 @@ import type {
   ItemUnitFilter,
   ItemUnitInput,
   PhotoImportResult,
+  PhotoLogEntryInput,
   ProjectInput,
   ProjectStatus,
   TransferInput
@@ -35,6 +36,12 @@ import {
 import { getDashboardRollup } from '../db/repositories/dashboard'
 import { listTransfers, getTransfersByProject, createTransfer } from '../db/repositories/transfers'
 import { listHandovers, getHandoversByProject, createHandover } from '../db/repositories/handovers'
+import {
+  listPhotoLog,
+  createPhotoLogEntry,
+  deletePhotoLogEntry,
+  getPhotoLogEntryById
+} from '../db/repositories/photoLog'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
 import { importAndReconcile } from '../excel/importAndReconcile'
 import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
@@ -150,4 +157,14 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.handoversCreate, (_event, input: HandoverInput) =>
     createHandover(db, input)
   )
+
+  ipcMain.handle(IPC_CHANNELS.photoLogList, () => listPhotoLog(db))
+  ipcMain.handle(IPC_CHANNELS.photoLogCreate, (_event, input: PhotoLogEntryInput) =>
+    createPhotoLogEntry(db, input)
+  )
+  ipcMain.handle(IPC_CHANNELS.photoLogDelete, async (_event, id: number) => {
+    const existing = await getPhotoLogEntryById(db, id)
+    await deletePhotoLogEntry(db, id)
+    if (existing) await deleteManagedPhoto(existing.photoEvidenceRef)
+  })
 }

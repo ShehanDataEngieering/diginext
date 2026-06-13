@@ -36,7 +36,11 @@ export const IPC_CHANNELS = {
 
   handoversList: 'handovers:list',
   handoversByProject: 'handovers:by-project',
-  handoversCreate: 'handovers:create'
+  handoversCreate: 'handovers:create',
+
+  photoLogList: 'photo-log:list',
+  photoLogCreate: 'photo-log:create',
+  photoLogDelete: 'photo-log:delete'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
@@ -252,4 +256,22 @@ export interface HandoverInput {
   notes: string | null
   signatureRef: string | null
   items: HandoverItemInput[]
+}
+
+// A standalone photo entry not tied to a specific item unit — general
+// documentation photos (e.g. tool kits, handover evidence) with a free-text
+// label.
+export interface PhotoLogEntry {
+  id: number
+  label: string
+  photoEvidenceRef: string
+  projectId: number | null
+  projectName: string | null
+  createdAt: string
+}
+
+export interface PhotoLogEntryInput {
+  label: string
+  photoEvidenceRef: string
+  projectId: number | null
 }

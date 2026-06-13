@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabaseClient'
+import diginextLogo from '../assets/diginext-logo.png'
 
 type VerifyState = 'pending' | 'verified' | 'rejected'
 
@@ -62,11 +63,12 @@ function SignInForm(): React.JSX.Element {
 
   return (
     <CenteredMessage>
-      <div className="w-full max-w-sm">
-        <h2 className="mb-6 text-xl font-semibold text-gray-800">Sign in to Inventory Manager</h2>
+      <div className="w-full max-w-sm rounded-lg border border-[#E5E5E5] bg-white p-8 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <img src={diginextLogo} alt="Diginext Scandinavia" className="mx-auto mb-6 h-16 w-auto" />
+        <h2 className="mb-6 text-base font-semibold text-[#1D1D1F]">Sign in to Inventory Manager</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1 block text-left text-sm text-gray-600">
+            <label htmlFor="email" className="mb-1 block text-left text-sm font-medium text-[#1D1D1F]">
               Email
             </label>
             <input
@@ -75,12 +77,12 @@ function SignInForm(): React.JSX.Element {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              className="h-8 w-full rounded-md border border-[#D1D1D6] px-3 text-sm transition-colors duration-150 focus:border-[#0066CC] focus:ring-1 focus:ring-[#0066CC] focus:outline-none"
               placeholder="you@example.com"
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-left text-sm text-gray-600">
+            <label htmlFor="password" className="mb-1 block text-left text-sm font-medium text-[#1D1D1F]">
               Password
             </label>
             <input
@@ -89,16 +91,16 @@ function SignInForm(): React.JSX.Element {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              className="h-8 w-full rounded-md border border-[#D1D1D6] px-3 text-sm transition-colors duration-150 focus:border-[#0066CC] focus:ring-1 focus:ring-[#0066CC] focus:outline-none"
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="h-8 w-full rounded-md bg-[#0066CC] px-3 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#0052A3] disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
       </div>

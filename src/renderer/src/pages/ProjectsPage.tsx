@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react'
-import { Archive, ArrowRightLeft, ClipboardCheck, Download, Pencil, Plus, RotateCcw, Upload } from 'lucide-react'
+import {
+  Archive,
+  ArrowRightLeft,
+  ClipboardCheck,
+  Download,
+  FolderKanban,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Upload
+} from 'lucide-react'
 import type { ItemUnitWithDetails, Project, ProjectInput, ImportSummary } from '@shared/ipc'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -47,15 +57,19 @@ export function ProjectsPage({
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
-  // Path-based import fallback for WSLg where drag-and-drop from Windows
-  // Explorer never reaches the app (WSLg doesn't bridge drag events).
-  const [importPath, setImportPath] = useState('')
 
   const [transferProject, setTransferProject] = useState<Project | null>(null)
   const [transferUnits, setTransferUnits] = useState<ItemUnitWithDetails[]>([])
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<number>>(new Set())
   const [bulkDestProjectId, setBulkDestProjectId] = useState(UNASSIGNED)
   const [bulkTransferring, setBulkTransferring] = useState(false)
+
+  // Shown right after a new project is created, so units can be assigned to
+  // it immediately instead of bouncing to the Item Units page.
+  const [assignProject, setAssignProject] = useState<Project | null>(null)
+  const [assignUnits, setAssignUnits] = useState<ItemUnitWithDetails[]>([])
+  const [selectedAssignUnitIds, setSelectedAssignUnitIds] = useState<Set<number>>(new Set())
+  const [assigning, setAssigning] = useState(false)
 
   async function reload(): Promise<void> {
     try {
@@ -91,7 +105,11 @@ export function ProjectsPage({
     try {
       const input = toInput(form)
       if (dialogProject === 'new') {
-        await window.api.projects.create(input)
+        const created = await window.api.projects.create(input)
+        setDialogProject(null)
+        await reload()
+        await openAssignUnits(created)
+        return
       } else if (dialogProject) {
         await window.api.projects.update(dialogProject.id, input)
       }
@@ -169,13 +187,6 @@ export function ProjectsPage({
     await runImport(window.api.photos.pathForFile(file))
   }
 
-  async function handleImportFromPath(): Promise<void> {
-    const path = importPath.trim()
-    if (!path) return
-    await runImport(path)
-    setImportPath('')
-  }
-
   async function openTransferUnits(project: Project): Promise<void> {
     setTransferProject(project)
     setSelectedUnitIds(new Set())
@@ -236,18 +247,102 @@ export function ProjectsPage({
     }
   }
 
+  async function openAssignUnits(project: Project): Promise<void> {
+    setAssignProject(project)
+    setSelectedAssignUnitIds(new Set())
+    try {
+      const units = await window.api.itemUnits.list({})
+      setAssignUnits(units.filter((u) => u.assignedProjectId !== project.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function toggleAssignUnitSelected(unitId: number): void {
+    setSelectedAssignUnitIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(unitId)) next.delete(unitId)
+      else next.add(unitId)
+      return next
+    })
+  }
+
+  async function handleAssignUnits(): Promise<void> {
+    if (!assignProject || selectedAssignUnitIds.size === 0) return
+    setAssigning(true)
+    setError(null)
+    try {
+      const selected = assignUnits.filter((u) => selectedAssignUnitIds.has(u.id))
+      for (const unit of selected) {
+        await window.api.itemUnits.update(unit.id, {
+          itemId: unit.itemId,
+          serialId: unit.serialId,
+          assignedProjectId: assignProject.id,
+          auditDate: unit.auditDate,
+          remarks: unit.remarks,
+          status: unit.status,
+          photoEvidenceRef: unit.photoEvidenceRef
+        })
+        await window.api.transfers.create({
+          date: new Date().toISOString().slice(0, 10),
+          itemId: unit.itemId,
+          serialId: unit.serialId,
+          qty: 1,
+          fromProjectId: unit.assignedProjectId,
+          toProjectId: assignProject.id,
+          transferredBy: null,
+          authorizedBy: null,
+          notes: null,
+          status: 'Completed'
+        })
+      }
+      setAssignProject(null)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  // Group units by their parent item so the assign-units picker reads as
+  // "Item -> its units" rather than one flat list.
+  const groupedAssignUnits = (() => {
+    const groups = new Map<number, { itemCategory: string; itemName: string; units: ItemUnitWithDetails[] }>()
+    for (const unit of assignUnits) {
+      const group = groups.get(unit.itemId) ?? { itemCategory: unit.itemCategory, itemName: unit.itemName, units: [] }
+      group.units.push(unit)
+      groups.set(unit.itemId, group)
+    }
+    // Available (unassigned) units are the most likely candidates to move
+    // into a brand-new project, so surface them first within each group.
+    for (const group of groups.values()) {
+      group.units.sort((a, b) => {
+        const aAvailable = a.assignedProjectId === null
+        const bAvailable = b.assignedProjectId === null
+        if (aAvailable !== bAvailable) return aAvailable ? -1 : 1
+        return 0
+      })
+    }
+    return Array.from(groups.entries()).sort(([, a], [, b]) =>
+      `${a.itemCategory} ${a.itemName}`.localeCompare(`${b.itemCategory} ${b.itemName}`)
+    )
+  })()
+
+  const availableAssignCount = assignUnits.filter((u) => u.assignedProjectId === null).length
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Projects</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-base font-semibold text-[#1D1D1F]">Projects</h2>
+          <p className="mt-0.5 text-xs text-[#6E6E73]">
             Sites/regions that equipment is deployed to. Archiving keeps history but stops new
-            assignments — a hand-over flow lands in a later milestone.
+            assignments.
           </p>
         </div>
         <Button onClick={openCreate}>
-          <Plus /> Add project
+          <Plus size={16} strokeWidth={1.5} /> Add project
         </Button>
       </div>
 
@@ -282,29 +377,6 @@ export function ProjectsPage({
               ? 'Importing and reconciling…'
               : 'Drag and drop a filled-in export sheet here to import transfers.'}
           </p>
-        </div>
-
-        {/* Path input fallback — drag-and-drop from Windows Explorer does not
-            work in WSLg (drag events never reach Linux apps). Paste the full
-            Linux path to the xlsx file here instead, e.g.
-            /home/user/Documents/Diginext Inventory Exports/Inventory - X.xlsx */}
-        <div className="flex gap-2">
-          <Input
-            className="font-mono text-xs"
-            placeholder="/home/shehanp12/Documents/Diginext Inventory Exports/Inventory - ….xlsx"
-            value={importPath}
-            onChange={(e) => setImportPath(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void handleImportFromPath()}
-            disabled={importing}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={importing || !importPath.trim()}
-            onClick={() => void handleImportFromPath()}
-          >
-            Import
-          </Button>
         </div>
       </div>
 
@@ -349,32 +421,43 @@ export function ProjectsPage({
         </div>
       )}
 
-      <div className="rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Updated by</TableHead>
-              <TableHead>Last updated</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-28" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {projects?.map((project) => (
-              <TableRow key={project.id}>
-                <TableCell className="font-medium">{project.name}</TableCell>
-                <TableCell>{project.location ?? '—'}</TableCell>
-                <TableCell>{project.updatedBy ?? '—'}</TableCell>
-                <TableCell>{project.lastUpdatedDate ?? '—'}</TableCell>
-                <TableCell>
-                  <Badge variant={project.status === 'active' ? 'default' : 'secondary'}>
+      <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-[#F5F5F7]">
+            <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
+              <th className="px-3 py-2 text-left">Name</th>
+              <th className="px-3 py-2 text-left">Location</th>
+              <th className="px-3 py-2 text-left">Updated by</th>
+              <th className="px-3 py-2 text-left">Last updated</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="w-40 px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {projects?.map((project, idx) => (
+              <tr
+                key={project.id}
+                className={`group h-9 border-t border-[#F0F0F0] transition-colors duration-150 hover:bg-[#F0F6FF] ${
+                  idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'
+                }`}
+              >
+                <td className="px-3 py-2 font-medium text-[#1D1D1F]">{project.name}</td>
+                <td className="px-3 py-2 text-[#6E6E73]">{project.location ?? '—'}</td>
+                <td className="px-3 py-2 text-[#6E6E73]">{project.updatedBy ?? '—'}</td>
+                <td className="px-3 py-2 text-[#6E6E73]">{project.lastUpdatedDate ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <span
+                    className={`inline-block rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${
+                      project.status === 'active'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-[#E5E5E5] text-[#6E6E73]'
+                    }`}
+                  >
                     {project.status === 'active' ? 'Active' : 'Completed'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
+                  </span>
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -382,10 +465,10 @@ export function ProjectsPage({
                       disabled={exportingId === project.id}
                       onClick={() => handleExport(project)}
                     >
-                      <Download />
+                      <Download size={14} strokeWidth={1.5} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(project)}>
-                      <Pencil />
+                    <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(project)}>
+                      <Pencil size={14} strokeWidth={1.5} />
                     </Button>
                     <Button
                       variant="ghost"
@@ -393,7 +476,7 @@ export function ProjectsPage({
                       title="Transfer units out of this project"
                       onClick={() => openTransferUnits(project)}
                     >
-                      <ArrowRightLeft />
+                      <ArrowRightLeft size={14} strokeWidth={1.5} />
                     </Button>
                     <Button
                       variant="ghost"
@@ -401,7 +484,7 @@ export function ProjectsPage({
                       title="Start handover for this project"
                       onClick={() => onStartHandover?.(project.id)}
                     >
-                      <ClipboardCheck />
+                      <ClipboardCheck size={14} strokeWidth={1.5} />
                     </Button>
                     <Button
                       variant="ghost"
@@ -409,32 +492,43 @@ export function ProjectsPage({
                       title={project.status === 'active' ? 'Archive' : 'Reactivate'}
                       onClick={() => toggleStatus(project)}
                     >
-                      {project.status === 'active' ? <Archive /> : <RotateCcw />}
+                      {project.status === 'active' ? (
+                        <Archive size={14} strokeWidth={1.5} />
+                      ) : (
+                        <RotateCcw size={14} strokeWidth={1.5} />
+                      )}
                     </Button>
                   </div>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
             {projects?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground text-center">
-                  No projects yet — add the first one.
-                </TableCell>
-              </TableRow>
+              <tr>
+                <td colSpan={6} className="px-3 py-12 text-center">
+                  <FolderKanban size={40} strokeWidth={1.5} className="mx-auto mb-2 text-[#AEAEB2]" />
+                  <p className="text-sm font-medium text-[#1D1D1F]">No projects yet</p>
+                  <p className="mt-0.5 mb-3 text-xs text-[#6E6E73]">
+                    Add your first project site to start assigning equipment.
+                  </p>
+                  <Button size="sm" onClick={openCreate}>
+                    <Plus size={14} strokeWidth={1.5} /> Add project
+                  </Button>
+                </td>
+              </tr>
             )}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
-      <Dialog open={dialogProject !== null} onOpenChange={(open) => !open && setDialogProject(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{dialogProject === 'new' ? 'Add project' : 'Edit project'}</DialogTitle>
-            <DialogDescription>Site/region details, mirroring the per-project sheet header.</DialogDescription>
-          </DialogHeader>
+      <Sheet open={dialogProject !== null} onOpenChange={(open) => !open && setDialogProject(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{dialogProject === 'new' ? 'Add project' : 'Edit project'}</SheetTitle>
+            <SheetDescription>Site/region details, mirroring the per-project sheet header.</SheetDescription>
+          </SheetHeader>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
+          <SheetBody className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
               <Label htmlFor="project-name">Name</Label>
               <Input
                 id="project-name"
@@ -443,7 +537,7 @@ export function ProjectsPage({
                 placeholder="e.g. At North Copenhagen"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <Label htmlFor="project-location">Location</Label>
               <Input
                 id="project-location"
@@ -451,49 +545,51 @@ export function ProjectsPage({
                 onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="project-updated-by">Updated by</Label>
-              <Input
-                id="project-updated-by"
-                value={form.updatedBy ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, updatedBy: e.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="project-updated-by">Updated by</Label>
+                <Input
+                  id="project-updated-by"
+                  value={form.updatedBy ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, updatedBy: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="project-last-updated">Last updated date</Label>
+                <Input
+                  id="project-last-updated"
+                  type="date"
+                  value={form.lastUpdatedDate ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, lastUpdatedDate: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="project-last-updated">Last updated date</Label>
-              <Input
-                id="project-last-updated"
-                type="date"
-                value={form.lastUpdatedDate ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, lastUpdatedDate: e.target.value }))}
-              />
-            </div>
-          </div>
+          </SheetBody>
 
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" onClick={() => setDialogProject(null)}>
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
               {dialogProject === 'new' ? 'Create' : 'Save changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      <Dialog open={transferProject !== null} onOpenChange={(open) => !open && setTransferProject(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transfer units</DialogTitle>
-            <DialogDescription>
+      <Sheet open={transferProject !== null} onOpenChange={(open) => !open && setTransferProject(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Transfer units</SheetTitle>
+            <SheetDescription>
               {transferProject
                 ? `Move selected units out of "${transferProject.name}" to another project.`
                 : ''}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="flex flex-col gap-3">
-            <div className="max-h-64 overflow-y-auto rounded-md border">
+          <SheetBody className="flex flex-col gap-3">
+            <div className="max-h-80 overflow-y-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -548,18 +644,72 @@ export function ProjectsPage({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </SheetBody>
 
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" onClick={() => setTransferProject(null)}>
               Cancel
             </Button>
             <Button onClick={handleBulkTransfer} disabled={bulkTransferring || selectedUnitIds.size === 0}>
               Transfer {selectedUnitIds.size > 0 ? `(${selectedUnitIds.size})` : ''}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={assignProject !== null} onOpenChange={(open) => !open && setAssignProject(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Assign units to {assignProject?.name}</SheetTitle>
+            <SheetDescription>
+              {availableAssignCount > 0
+                ? `${availableAssignCount} unassigned unit${availableAssignCount === 1 ? '' : 's'} (shown first in each group) are available to move in, or reassign units from other projects below.`
+                : 'No unassigned units right now — pick units to reassign from other projects, or skip and assign later from the Item Units page.'}
+            </SheetDescription>
+          </SheetHeader>
+
+          <SheetBody className="rounded-none border-0 p-0">
+            {groupedAssignUnits.map(([itemId, group]) => (
+              <div key={itemId} className="border-b last:border-b-0">
+                <div className="bg-muted/50 px-3 py-1.5 text-sm font-medium">
+                  {group.itemCategory} — {group.itemName}
+                </div>
+                <Table>
+                  <TableBody>
+                    {group.units.map((unit) => (
+                      <TableRow key={unit.id}>
+                        <TableCell className="w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedAssignUnitIds.has(unit.id)}
+                            onChange={() => toggleAssignUnitSelected(unit.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{unit.serialId ?? '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {unit.projectName ?? 'Available'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ))}
+            {assignUnits.length === 0 && (
+              <p className="text-muted-foreground p-4 text-center text-sm">No units to assign yet.</p>
+            )}
+          </SheetBody>
+
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setAssignProject(null)}>
+              Skip
+            </Button>
+            <Button onClick={handleAssignUnits} disabled={assigning || selectedAssignUnitIds.size === 0}>
+              Assign {selectedAssignUnitIds.size > 0 ? `(${selectedAssignUnitIds.size})` : ''}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

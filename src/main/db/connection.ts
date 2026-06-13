@@ -122,6 +122,23 @@ async function runPostgresMigrations(pg: PostgresAdapter): Promise<void> {
     ADD COLUMN IF NOT EXISTS transfer_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
   `)
 
+  await pg.exec(`
+    CREATE TABLE IF NOT EXISTS photo_log (
+      id                 SERIAL PRIMARY KEY,
+      label              TEXT NOT NULL,
+      photo_evidence_ref TEXT NOT NULL,
+      project_id         INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      created_at         TEXT NOT NULL DEFAULT NOW()
+    )
+  `)
+
+  // photo_log predates this column on databases created before it was added.
+  await pg.exec(`
+    ALTER TABLE photo_log
+    ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
+  `)
+  await pg.exec(`CREATE INDEX IF NOT EXISTS idx_photo_log_project_id ON photo_log(project_id)`)
+
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_item_id ON item_units(item_id)`)
   await pg.exec(`CREATE INDEX IF NOT EXISTS idx_item_units_project_id ON item_units(assigned_project_id)`)
   await pg.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_item_units_serial_id ON item_units(serial_id) WHERE serial_id IS NOT NULL`)

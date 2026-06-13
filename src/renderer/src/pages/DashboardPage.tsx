@@ -13,13 +13,14 @@ import type { DashboardRollup, DashboardRow, Item, ItemInput, ItemUnitWithDetail
 import { PhotoThumbnail } from '@/components/PhotoThumbnail'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,23 +71,24 @@ interface StatCellProps {
   value: number
   sub: string
   valueClassName?: string
-  last?: boolean
 }
 
-function StatCell({ label, value, sub, valueClassName, last }: StatCellProps): React.JSX.Element {
+function StatCell({ label, value, sub, valueClassName }: StatCellProps): React.JSX.Element {
   return (
-    <div className={cn('px-3.5 py-2.5', !last && 'border-r border-gray-200')}>
-      <div className="text-[10px] text-gray-400">{label}</div>
-      <div className={cn('text-[19px] font-semibold text-gray-900', valueClassName)}>{value}</div>
-      <div className="mt-0.5 text-[10px] text-gray-500">{sub}</div>
+    <div className="rounded-md border border-[#E5E5E5] bg-white p-4">
+      <div className="text-xs text-[#6E6E73]">{label}</div>
+      <div className={cn('mt-0.5 text-2xl font-semibold text-[#1D1D1F] tabular-nums', valueClassName)}>
+        {value}
+      </div>
+      <div className="mt-0.5 text-xs text-[#AEAEB2]">{sub}</div>
     </div>
   )
 }
 
 function NumericCell({ value }: { value: number }): React.JSX.Element {
   return (
-    <td className="px-3 py-2 text-right text-[13px] text-gray-500 tabular-nums">
-      {value === 0 ? <span className="text-gray-300">—</span> : value}
+    <td className="px-3 py-2 text-right text-sm text-[#6E6E73] tabular-nums">
+      {value === 0 ? <span className="text-[#D1D1D6]">—</span> : value}
     </td>
   )
 }
@@ -99,7 +101,9 @@ function AvailableChip({ value }: { value: number }): React.JSX.Element {
         ? 'bg-red-50 text-red-600'
         : 'bg-amber-50 text-amber-700'
   return (
-    <span className={cn('inline-block rounded px-1.5 py-0 text-[11px] font-medium', tone)}>{value}</span>
+    <span className={cn('inline-block rounded-sm px-1.5 py-0 text-[11px] font-medium tabular-nums', tone)}>
+      {value}
+    </span>
   )
 }
 
@@ -239,7 +243,7 @@ export function DashboardPage({
   }
 
   if (!rollup) {
-    return <div className="p-3.5 text-[13px] text-gray-500">Loading…</div>
+    return <div className="p-4 text-sm text-[#6E6E73]">Loading…</div>
   }
 
   const projectColumnWidth = rollup.projects.length > 0 ? Math.max(80, Math.floor(360 / rollup.projects.length)) : 0
@@ -247,16 +251,16 @@ export function DashboardPage({
   return (
     <div className="flex h-full flex-col">
       {/* Page header */}
-      <div className="shrink-0 px-3.5 pt-3.5 pb-2.5">
-        <h2 className="text-[16px] font-semibold text-gray-900">Main inventory</h2>
-        <div className="mt-1 flex items-center gap-1.5 text-[12px] text-gray-500">
-          <Info size={12} className="text-gray-400" />
+      <div className="shrink-0 px-4 pt-4 pb-3">
+        <h2 className="text-base font-semibold text-[#1D1D1F]">Main inventory</h2>
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#6E6E73]">
+          <Info size={12} strokeWidth={1.5} className="text-[#AEAEB2]" />
           <span>Units per active project, available stock and grand total — computed live.</span>
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="grid shrink-0 grid-cols-4 border-b border-gray-200">
+      {/* Stats row */}
+      <div className="grid shrink-0 grid-cols-4 gap-3 px-4 pb-3">
         <StatCell label="Total items" value={stats.totalItems} sub={`${stats.categoryCount} categories`} />
         <StatCell label="Initial stock" value={stats.initialStock} sub="total units" />
         <StatCell
@@ -268,24 +272,22 @@ export function DashboardPage({
           label="Zero available"
           value={stats.zeroAvailable}
           sub="items fully deployed"
-          valueClassName="text-red-500"
-          last
+          valueClassName="text-red-600"
         />
       </div>
 
       {/* Action bar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3.5 py-2">
-        <div className="relative max-w-[220px]">
-          <Search size={13} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search items…"
-            className="h-auto rounded-md border-gray-200 py-1 pl-7 text-[12px] focus-visible:ring-2 focus-visible:ring-blue-400"
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[#E5E5E5] px-4">
+        <div className="relative w-[220px]">
+          <Search
+            size={14}
+            strokeWidth={1.5}
+            className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-[#AEAEB2]"
           />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items…" className="h-7 pl-7 text-[13px]" />
         </div>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-auto w-48 rounded-md border-gray-200 py-1 text-[12px]">
+          <SelectTrigger className="h-7 w-48 text-[13px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -301,11 +303,10 @@ export function DashboardPage({
         <Button
           variant="outline"
           size="sm"
-          className="h-auto rounded-md px-3 py-1 text-[12px]"
           onClick={() => setSortDesc((d) => !d)}
           title={sortDesc ? 'Sorting Z → A' : 'Sorting A → Z'}
         >
-          <ArrowUpDown size={13} /> Sort
+          <ArrowUpDown size={14} strokeWidth={1.5} /> Sort
         </Button>
       </div>
 
@@ -313,9 +314,9 @@ export function DashboardPage({
 
       {/* Table */}
       <div className="flex-1 overflow-y-auto">
-        <table className="w-full table-fixed border-collapse text-[13px]">
-          <thead className="sticky top-0 z-10 bg-[#EFEFEF]">
-            <tr className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-[#F5F5F7]">
+            <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
               <th className="w-[28px] px-1 py-2" />
               <th className="px-3 py-2 text-left">Item</th>
               <th className="w-[82px] px-3 py-2 text-right">Initial stock</th>
@@ -341,10 +342,10 @@ export function DashboardPage({
           <tbody>
             {groups.map((group) => (
               <Fragment key={group.category}>
-                <tr className="border-y border-gray-200 bg-[#F4F4F4]">
+                <tr className="border-y border-[#E5E5E5] bg-[#FAFAFA]">
                   <td
                     colSpan={6 + rollup.projects.length}
-                    className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase"
+                    className="px-3 py-1.5 text-xs font-medium tracking-wide text-[#6E6E73] uppercase"
                   >
                     <span className="inline-flex items-center gap-1.5">
                       <span className={cn('size-1.5 rounded-full', categoryDotClass(group.category))} />
@@ -359,22 +360,22 @@ export function DashboardPage({
                   <Fragment key={row.itemId}>
                   <tr
                     className={cn(
-                      'group border-b border-gray-100 transition-colors hover:bg-blue-50/40',
-                      idx % 2 === 0 ? 'bg-gray-50' : 'bg-white',
-                      expanded && 'bg-blue-50/40'
+                      'group h-9 border-b border-[#F0F0F0] transition-colors duration-150 hover:bg-[#F0F6FF]',
+                      idx % 2 === 0 ? 'bg-[#FAFAFA]' : 'bg-white',
+                      expanded && 'bg-[#F0F6FF]'
                     )}
                   >
                     <td className="px-1 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => setExpandedItemId(expanded ? null : row.itemId)}
-                        className="text-gray-400 hover:text-gray-700"
+                        className="text-[#AEAEB2] transition-colors duration-150 hover:text-[#1D1D1F]"
                         title={expanded ? 'Hide individual units' : 'Show individual units (serial/unique IDs, photos)'}
                       >
-                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        {expanded ? <ChevronDown size={14} strokeWidth={1.5} /> : <ChevronRight size={14} strokeWidth={1.5} />}
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-[13px] font-medium text-gray-900">{row.name}</td>
+                    <td className="px-3 py-2 text-sm font-medium text-[#1D1D1F]">{row.name}</td>
                     <NumericCell value={row.initialStock} />
                     {rollup.projects.map((project) => (
                       <NumericCell key={project.id} value={row.countsByProjectId[project.id] ?? 0} />
@@ -382,7 +383,7 @@ export function DashboardPage({
                     <td className="px-3 py-2 text-right">
                       <AvailableChip value={row.derivedAvailable} />
                     </td>
-                    <td className="px-3 py-2 text-right text-[13px] font-semibold text-gray-800 tabular-nums">
+                    <td className="px-3 py-2 text-right text-sm font-semibold text-[#1D1D1F] tabular-nums">
                       {row.deployed}
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -390,7 +391,7 @@ export function DashboardPage({
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            className="inline-flex size-[22px] items-center justify-center rounded-md border border-gray-200 text-gray-500 opacity-0 transition-opacity group-hover:opacity-100"
+                            className="inline-flex size-7 items-center justify-center rounded-md text-[#6E6E73] opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-[#E8E8ED] data-[state=open]:opacity-100"
                           >
                             <MoreVertical size={13} />
                           </button>
@@ -407,12 +408,12 @@ export function DashboardPage({
                     </td>
                   </tr>
                   {expanded && (
-                    <tr className="border-b border-gray-200 bg-blue-50/20">
+                    <tr className="border-b border-[#E5E5E5] bg-[#F0F6FF]/50">
                       <td colSpan={6 + rollup.projects.length} className="px-3 py-2.5 pl-9">
-                        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+                        <div className="overflow-hidden rounded-md border border-[#E5E5E5] bg-white">
                           <table className="w-full text-[12px]">
-                            <thead className="bg-gray-50">
-                              <tr className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                            <thead className="bg-[#F5F5F7]">
+                              <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
                                 <th className="px-2.5 py-1.5 text-left">Serial / unique ID</th>
                                 <th className="px-2.5 py-1.5 text-left">Project</th>
                                 <th className="px-2.5 py-1.5 text-left">Status</th>
@@ -421,14 +422,14 @@ export function DashboardPage({
                             </thead>
                             <tbody>
                               {rowUnits.map((unit) => (
-                                <tr key={unit.id} className="border-t border-gray-100">
-                                  <td className="px-2.5 py-1.5 font-medium text-gray-800">
-                                    {unit.serialId ?? <span className="text-gray-300">—</span>}
+                                <tr key={unit.id} className="border-t border-[#F0F0F0]">
+                                  <td className="px-2.5 py-1.5 font-medium text-[#1D1D1F]">
+                                    {unit.serialId ?? <span className="text-[#D1D1D6]">—</span>}
                                   </td>
-                                  <td className="px-2.5 py-1.5 text-gray-600">
-                                    {unit.projectName ?? <span className="text-gray-400">Available</span>}
+                                  <td className="px-2.5 py-1.5 text-[#6E6E73]">
+                                    {unit.projectName ?? <span className="text-[#AEAEB2]">Available</span>}
                                   </td>
-                                  <td className="px-2.5 py-1.5 text-gray-600">{unit.status}</td>
+                                  <td className="px-2.5 py-1.5 text-[#6E6E73]">{unit.status}</td>
                                   <td className="px-2.5 py-1.5">
                                     <PhotoThumbnail
                                       reference={unit.photoEvidenceRef}
@@ -439,7 +440,7 @@ export function DashboardPage({
                               ))}
                               {rowUnits.length === 0 && (
                                 <tr>
-                                  <td colSpan={4} className="px-2.5 py-2.5 text-center text-gray-400">
+                                  <td colSpan={4} className="px-2.5 py-2.5 text-center text-[#AEAEB2]">
                                     No individually-tracked units recorded for this item yet.
                                   </td>
                                 </tr>
@@ -457,8 +458,10 @@ export function DashboardPage({
             ))}
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={6 + rollup.projects.length} className="px-3 py-6 text-center text-[13px] text-gray-400">
-                  No items match these filters.
+                <td colSpan={6 + rollup.projects.length} className="px-3 py-10 text-center">
+                  <Search size={40} strokeWidth={1.5} className="mx-auto mb-2 text-[#AEAEB2]" />
+                  <p className="text-sm font-medium text-[#1D1D1F]">No items match these filters</p>
+                  <p className="mt-0.5 text-xs text-[#6E6E73]">Try a different search or category.</p>
                 </td>
               </tr>
             )}
@@ -466,14 +469,14 @@ export function DashboardPage({
         </table>
       </div>
 
-      <Dialog open={editingItem !== null} onOpenChange={(open) => !open && setEditingItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit item</DialogTitle>
-            <DialogDescription>Updates the underlying item type — category, name, and baseline stock.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
+      <Sheet open={editingItem !== null} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Edit item</SheetTitle>
+            <SheetDescription>Updates the underlying item type — category, name, and baseline stock.</SheetDescription>
+          </SheetHeader>
+          <SheetBody className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
               <Label htmlFor="dash-edit-category">Category</Label>
               <Input
                 id="dash-edit-category"
@@ -481,35 +484,37 @@ export function DashboardPage({
                 onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dash-edit-name">Name</Label>
-              <Input
-                id="dash-edit-name"
-                value={editForm.name}
-                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="dash-edit-name">Name</Label>
+                <Input
+                  id="dash-edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="dash-edit-stock">Initial stock</Label>
+                <Input
+                  id="dash-edit-stock"
+                  type="number"
+                  min={0}
+                  value={editForm.initialStock}
+                  onChange={(e) => setEditForm((f) => ({ ...f, initialStock: Number(e.target.value) || 0 }))}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dash-edit-stock">Initial stock</Label>
-              <Input
-                id="dash-edit-stock"
-                type="number"
-                min={0}
-                value={editForm.initialStock}
-                onChange={(e) => setEditForm((f) => ({ ...f, initialStock: Number(e.target.value) || 0 }))}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+          </SheetBody>
+          <SheetFooter>
             <Button variant="outline" onClick={() => setEditingItem(null)}>
               Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={saving || !editForm.category.trim() || !editForm.name.trim()}>
               Save changes
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

@@ -49,7 +49,7 @@ async function syncInitialStock(db: DatabaseAdapter, itemId: number): Promise<vo
     [itemId]
   )
   const count = Number(row?.count ?? 0)
-  await db.query('UPDATE items SET initial_stock = MAX(initial_stock, ?) WHERE id = ?', [count, itemId])
+  await db.query('UPDATE items SET initial_stock = MAX(initial_stock, ?::int) WHERE id = ?', [count, itemId])
 }
 
 export async function importAndReconcile(
