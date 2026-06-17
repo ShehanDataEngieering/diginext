@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react'
-import { ClipboardCheck } from 'lucide-react'
+import { ClipboardCheck, Plus } from 'lucide-react'
 import { Handover } from '@shared/ipc'
+import { Button } from '@/components/ui/button'
 
-export function HandoverPage(): React.JSX.Element {
+export function HandoverPage({
+  onNewHandover
+}: {
+  onNewHandover?: () => void
+} = {}): React.JSX.Element {
   const [handovers, setHandovers] = useState<Handover[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,20 +42,31 @@ export function HandoverPage(): React.JSX.Element {
     )
   }
 
+  const header = (
+    <div className="flex items-start justify-between">
+      <div>
+        <h2 className="text-base font-semibold text-[#1D1D1F]">Handover Records</h2>
+        <p className="mt-0.5 text-xs text-[#6E6E73]">
+          Completed project hand-overs with per-unit condition and destination.
+        </p>
+      </div>
+      {onNewHandover && (
+        <Button onClick={onNewHandover}>
+          <Plus size={16} strokeWidth={1.5} /> New handover
+        </Button>
+      )}
+    </div>
+  )
+
   if (handovers.length === 0) {
     return (
       <div className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#1D1D1F]">Handover Records</h2>
-          <p className="mt-0.5 text-xs text-[#6E6E73]">
-            Completed project hand-overs with per-unit condition and destination.
-          </p>
-        </div>
+        {header}
         <div className="flex flex-col items-center justify-center rounded-md border border-[#E5E5E5] py-16 text-center">
           <ClipboardCheck size={40} strokeWidth={1.5} className="mb-2 text-[#AEAEB2]" />
           <p className="text-sm font-medium text-[#1D1D1F]">No handovers recorded yet</p>
           <p className="mt-0.5 text-xs text-[#6E6E73]">
-            Start a handover from a project's row actions on the Projects page.
+            Click "New handover" above to record a project hand-over.
           </p>
         </div>
       </div>
@@ -59,12 +75,7 @@ export function HandoverPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-base font-semibold text-[#1D1D1F]">Handover Records</h2>
-        <p className="mt-0.5 text-xs text-[#6E6E73]">
-          Completed project hand-overs with per-unit condition and destination.
-        </p>
-      </div>
+      {header}
 
       {handovers.map((handover) => (
         <div key={handover.id} className="overflow-hidden rounded-md border border-[#E5E5E5] bg-white">

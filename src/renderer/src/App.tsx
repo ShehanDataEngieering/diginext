@@ -134,7 +134,7 @@ function App() {
             )}
             {activeTab === 'handovers' && (
               <div className="h-full overflow-y-auto p-3.5">
-                <HandoverPage />
+                <HandoverPage onNewHandover={() => setActiveTab('handover-flow')} />
               </div>
             )}
             {activeTab === 'handover-flow' && (
