@@ -120,7 +120,9 @@ const api = {
     list: (): Promise<PhotoLogEntry[]> => ipcRenderer.invoke(IPC_CHANNELS.photoLogList),
     create: (input: PhotoLogEntryInput): Promise<PhotoLogEntry> =>
       ipcRenderer.invoke(IPC_CHANNELS.photoLogCreate, input),
-    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.photoLogDelete, id)
+    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.photoLogDelete, id),
+    setProject: (id: number, projectId: number | null): Promise<PhotoLogEntry> =>
+      ipcRenderer.invoke(IPC_CHANNELS.photoLogSetProject, id, projectId)
   }
 }
 

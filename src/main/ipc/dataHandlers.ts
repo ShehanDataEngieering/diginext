@@ -40,7 +40,8 @@ import {
   listPhotoLog,
   createPhotoLogEntry,
   deletePhotoLogEntry,
-  getPhotoLogEntryById
+  getPhotoLogEntryById,
+  setPhotoLogProject
 } from '../db/repositories/photoLog'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
 import { importAndReconcile } from '../excel/importAndReconcile'
@@ -176,4 +177,8 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
     await deletePhotoLogEntry(db, id)
     if (existing) await deleteManagedPhoto(existing.photoEvidenceRef)
   })
+  ipcMain.handle(
+    IPC_CHANNELS.photoLogSetProject,
+    (_event, id: number, projectId: number | null) => setPhotoLogProject(db, id, projectId)
+  )
 }

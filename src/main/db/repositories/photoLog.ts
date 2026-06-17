@@ -55,3 +55,18 @@ export async function getPhotoLogEntryById(db: DatabaseAdapter, id: number): Pro
 export async function deletePhotoLogEntry(db: DatabaseAdapter, id: number): Promise<void> {
   await db.query('DELETE FROM photo_log WHERE id = ?', [id])
 }
+
+// Re-tags an existing photo-log entry to a different project (or to no
+// project when passed null). Used by the per-project Toolbox Photos page to
+// pull a photo in from the shared log — a move rather than a copy, since the
+// underlying photo file is owned by a single entry and deleted with it.
+export async function setPhotoLogProject(
+  db: DatabaseAdapter,
+  id: number,
+  projectId: number | null
+): Promise<PhotoLogEntry> {
+  await db.query('UPDATE photo_log SET project_id = ? WHERE id = ?', [projectId, id])
+  const updated = await getPhotoLogEntryById(db, id)
+  if (!updated) throw new Error('Photo log entry not found')
+  return updated
+}

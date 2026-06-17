@@ -77,6 +77,7 @@ interface Api {
     list: () => Promise<PhotoLogEntry[]>
     create: (input: PhotoLogEntryInput) => Promise<PhotoLogEntry>
     delete: (id: number) => Promise<void>
+    setProject: (id: number, projectId: number | null) => Promise<PhotoLogEntry>
   }
 }
 

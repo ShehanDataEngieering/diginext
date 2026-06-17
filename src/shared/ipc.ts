@@ -42,7 +42,8 @@ export const IPC_CHANNELS = {
 
   photoLogList: 'photo-log:list',
   photoLogCreate: 'photo-log:create',
-  photoLogDelete: 'photo-log:delete'
+  photoLogDelete: 'photo-log:delete',
+  photoLogSetProject: 'photo-log:set-project'
 } as const
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
