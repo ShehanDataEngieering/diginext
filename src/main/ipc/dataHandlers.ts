@@ -122,6 +122,7 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
       const items = await listItems(db)
       const units = await listItemUnits(db, { projectId })
+      const photoLog = (await listPhotoLog(db)).filter((e) => e.projectId === projectId)
 
       const dir = exportDirectory()
       mkdirSync(dir, { recursive: true })
@@ -134,7 +135,13 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
         await existingWorkbook.xlsx.readFile(filePath)
       }
 
-      const workbook = await buildProjectInventoryWorkbook(project, items, units, existingWorkbook)
+      const workbook = await buildProjectInventoryWorkbook(
+        project,
+        items,
+        units,
+        photoLog,
+        existingWorkbook
+      )
       await workbook.xlsx.writeFile(filePath)
 
       return { filePath }
