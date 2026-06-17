@@ -19,6 +19,7 @@
 import ExcelJS from 'exceljs'
 import { utils, type WorkBook } from 'xlsx'
 import { DIGINEXT_LOGO_BASE64 } from './diginextLogo'
+import { readPhotoBuffer } from '../photos/photoStore'
 import type { Item, ItemUnitWithDetails, Project } from '../../shared/ipc'
 
 // Fallback sheet name — the reference templates name each visible sheet after
@@ -200,8 +201,8 @@ export async function buildProjectInventoryWorkbook(
   // row, across all 11 data columns — matching the lined look of the reference.
   applyTableBorders(sheet, COLUMN_HEADER_ROW, lastRow)
 
-  // Add images sheet listing serial IDs of units with photos
-  buildImagesSheet(workbook, units, project.id, sheetTabName(project))
+  // Add images sheet with embedded photos
+  await buildImagesSheet(workbook, units, project.id, sheetTabName(project))
 
   appendMetaSheet(workbook, {
     projectId: project.id,
@@ -403,7 +404,7 @@ function writeItemRows(
     for (const unit of serializedUnits) {
       writeRowValues(sheet, nextRow, [
         [SERIAL_COL, unit.serialId ?? ''],
-        [PHOTO_COL, unit.photoEvidenceRef ?? ''],
+        [PHOTO_COL, unit.photoEvidenceRef ? 'See images sheet' : ''],
         [AUDIT_DATE_COL, unit.auditDate ?? ''],
         [REMARKS_COL, unit.remarks ?? '']
       ])
@@ -511,36 +512,83 @@ function fillRange(
   }
 }
 
-// --- Images log sheet ------------------------------------------------------
+// --- Images log sheet with embedded photos ---------------------------------
 
-function buildImagesSheet(
+const IMG_ROW_HEIGHT = 105 // pixels → roughly 80pt row height in Excel
+const IMG_DISPLAY_WIDTH = 140
+const IMG_DISPLAY_HEIGHT = 100
+
+async function buildImagesSheet(
   workbook: ExcelJS.Workbook,
   units: ItemUnitWithDetails[],
   projectId: number,
   dateSheetName: string
-): void {
+): Promise<void> {
   const unitsWithPhotos = units.filter(
     (u) => u.assignedProjectId === projectId && u.photoEvidenceRef !== null && u.photoEvidenceRef !== ''
   )
   if (unitsWithPhotos.length === 0) return
+
   const sheetName = `images ${dateSheetName}`
   const sheet = workbook.addWorksheet(sheetName)
-  sheet.getColumn(1).width = 30
-  sheet.getColumn(2).width = 30
-  sheet.getColumn(3).width = 20
+
+  // Column layout: A=photo, B=serial, C=item name, D=category
+  sheet.getColumn(1).width = 22   // photo
+  sheet.getColumn(2).width = 18   // serial
+  sheet.getColumn(3).width = 28   // item name
+  sheet.getColumn(4).width = 22   // category
+
+  // Header row
+  const HEADER_COLS = ['Photo', 'Serial ID', 'Item Name', 'Category']
   const headerRow = sheet.getRow(1)
-  headerRow.getCell(1).value = 'Serial ID'
-  headerRow.getCell(2).value = 'Item Name'
-  headerRow.getCell(3).value = 'Category'
-  headerRow.getCell(1).font = { bold: true }
-  headerRow.getCell(2).font = { bold: true }
-  headerRow.getCell(3).font = { bold: true }
-  unitsWithPhotos.forEach((unit, index) => {
-    const row = sheet.getRow(index + 2)
-    row.getCell(1).value = unit.serialId ?? ''
-    row.getCell(2).value = unit.itemName
-    row.getCell(3).value = unit.itemCategory
+  HEADER_COLS.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1)
+    cell.value = h
+    cell.font = { bold: true, color: { argb: WHITE_FONT } }
+    cell.alignment = { vertical: 'middle', horizontal: 'center' }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } }
   })
+  headerRow.height = 24
+
+  for (let i = 0; i < unitsWithPhotos.length; i++) {
+    const unit = unitsWithPhotos[i]
+    const rowNumber = i + 2  // 1-indexed; row 1 is the header
+    const row = sheet.getRow(rowNumber)
+    row.height = IMG_ROW_HEIGHT
+
+    row.getCell(2).value = unit.serialId ?? '—'
+    row.getCell(3).value = unit.itemName
+    row.getCell(4).value = unit.itemCategory
+    for (let col = 2; col <= 4; col++) {
+      row.getCell(col).alignment = { vertical: 'middle', wrapText: true }
+    }
+
+    // Embed the actual photo in column A
+    if (unit.photoEvidenceRef) {
+      const photo = await readPhotoBuffer(unit.photoEvidenceRef)
+      if (photo) {
+        const imageId = workbook.addImage({ buffer: photo.buffer, extension: photo.extension })
+        // tl/br are zero-based column/row indices
+        sheet.addImage(imageId, {
+          tl: { col: 0, row: rowNumber - 1 },
+          ext: { width: IMG_DISPLAY_WIDTH, height: IMG_DISPLAY_HEIGHT }
+        })
+      }
+    }
+  }
+
+  // Thin borders across all rows
+  const border: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FF000000' } },
+    left: { style: 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: 'thin', color: { argb: 'FF000000' } },
+    right: { style: 'thin', color: { argb: 'FF000000' } }
+  }
+  for (let row = 1; row <= unitsWithPhotos.length + 1; row++) {
+    for (let col = 1; col <= 4; col++) {
+      sheet.getCell(row, col).border = border
+    }
+  }
 }
 
 // --- Hidden metadata sheet ------------------------------------------------------

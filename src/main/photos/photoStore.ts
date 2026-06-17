@@ -104,6 +104,29 @@ export async function readPhotoDataUrl(reference: string): Promise<string | null
   }
 }
 
+export async function readPhotoBuffer(reference: string): Promise<{ buffer: Buffer; extension: 'jpeg' | 'png' | 'gif' } | null> {
+  if (!reference || reference !== basename(reference)) return null
+  const ext = extname(reference).toLowerCase()
+  if (!(ext in MIME_BY_EXTENSION)) return null
+
+  try {
+    await ensureBucket()
+    const { url, key } = getStorageConfig()
+
+    const res = await fetch(`${url}/storage/v1/object/${BUCKET_NAME}/${reference}`, {
+      headers: storageHeaders(key)
+    })
+    if (!res.ok) return null
+
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const extension: 'jpeg' | 'png' | 'gif' =
+      ext === '.png' ? 'png' : ext === '.gif' ? 'gif' : 'jpeg'
+    return { buffer, extension }
+  } catch {
+    return null
+  }
+}
+
 export async function deleteManagedPhoto(reference: string | null | undefined): Promise<void> {
   if (!reference) return
   if (reference !== basename(reference)) return
