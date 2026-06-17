@@ -6,16 +6,44 @@ import { parseImportedSheet } from './parseImportedSheet'
 
 interface ProjectRow { id: number; name: string }
 
+// Normalize a string for fuzzy project/serial matching:
+// fold Unicode accents (ä→a, ö→o, etc.) and collapse whitespace around hyphens.
+function normalizeForMatch(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip combining diacritics
+    .replace(/\s*-\s*/g, '-')        // "DN - 06" → "DN-06"
+    .toLowerCase()
+    .trim()
+}
+
 async function resolveOrCreateProject(
   db: DatabaseAdapter,
   markerId: number,
   markerName: string
 ): Promise<{ projectId: number; projectName: string; projectCreated: boolean }> {
-  let row =
-    (await db.queryOne('SELECT id, name FROM projects WHERE id = ?', [markerId]) as ProjectRow | null) ??
-    (await db.queryOne('SELECT id, name FROM projects WHERE LOWER(name) = LOWER(?)', [markerName]) as ProjectRow | null)
+  // Try exact id match first (only meaningful for app-exported sheets where id > 0).
+  const byId = markerId > 0
+    ? (await db.queryOne('SELECT id, name FROM projects WHERE id = ?', [markerId]) as ProjectRow | null)
+    : null
 
-  if (row) return { projectId: row.id, projectName: row.name, projectCreated: false }
+  if (byId) return { projectId: byId.id, projectName: byId.name, projectCreated: false }
+
+  // Exact case-insensitive name match.
+  const byName = await db.queryOne(
+    'SELECT id, name FROM projects WHERE LOWER(name) = LOWER(?)', [markerName]
+  ) as ProjectRow | null
+
+  if (byName) return { projectId: byName.id, projectName: byName.name, projectCreated: false }
+
+  // Fuzzy match: normalize both sides (strip accents, collapse spaces around hyphens).
+  const normalTarget = normalizeForMatch(markerName)
+  const allProjects = await db.query('SELECT id, name FROM projects', [])
+  const fuzzy = (allProjects.rows as unknown as ProjectRow[]).find(
+    (r) => normalizeForMatch(r.name) === normalTarget
+  )
+
+  if (fuzzy) return { projectId: fuzzy.id, projectName: fuzzy.name, projectCreated: false }
 
   const result = await db.query(
     "INSERT INTO projects (name, status) VALUES (?, 'active') RETURNING id",
@@ -49,7 +77,7 @@ async function syncInitialStock(db: DatabaseAdapter, itemId: number): Promise<vo
     [itemId]
   )
   const count = Number(row?.count ?? 0)
-  await db.query('UPDATE items SET initial_stock = MAX(initial_stock, ?::int) WHERE id = ?', [count, itemId])
+  await db.query('UPDATE items SET initial_stock = GREATEST(initial_stock, ?::int) WHERE id = ?', [count, itemId])
 }
 
 export async function importAndReconcile(
@@ -86,12 +114,12 @@ export async function importAndReconcile(
       touchedItemIds.add(itemId)
 
       const serialisedInBlock = block.units.filter((u) => u.serialId !== null)
-      const importedSerials = new Set(serialisedInBlock.map((u) => u.serialId!.toLowerCase()))
+      const importedSerials = new Set(serialisedInBlock.map((u) => normalizeForMatch(u.serialId!)))
 
       for (const currentUnit of currentProjectUnits) {
         if (!currentUnit.serialId) continue
         if (currentUnit.itemId !== itemId) continue
-        if (!importedSerials.has(currentUnit.serialId.toLowerCase())) {
+        if (!importedSerials.has(normalizeForMatch(currentUnit.serialId))) {
           unitsRemoved++
           details.push({
             type: 'removed',
@@ -103,9 +131,9 @@ export async function importAndReconcile(
       }
 
       for (const importedUnit of serialisedInBlock) {
-        const serialKey = importedUnit.serialId!.toLowerCase()
+        const serialKey = normalizeForMatch(importedUnit.serialId!)
         const existingUnit = allUnits.find(
-          (u) => u.serialId && u.serialId.toLowerCase() === serialKey
+          (u) => u.serialId && normalizeForMatch(u.serialId) === serialKey
         )
 
         if (!existingUnit) {

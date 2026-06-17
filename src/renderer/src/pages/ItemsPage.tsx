@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Item, ItemInput } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
@@ -68,8 +69,10 @@ export function ItemsPage(): React.JSX.Element {
     try {
       if (dialogItem === 'new') {
         await window.api.items.create(form)
+        toast.success('Item type created', { description: `${form.category} · ${form.name}` })
       } else if (dialogItem) {
         await window.api.items.update(dialogItem.id, form)
+        toast.success('Item type updated', { description: `${form.category} · ${form.name}` })
       }
       setDialogItem(null)
       await reload()
@@ -85,6 +88,7 @@ export function ItemsPage(): React.JSX.Element {
     setError(null)
     try {
       await window.api.items.delete(item.id)
+      toast.success('Item type deleted', { description: `${item.category} · ${item.name}` })
       await reload()
     } catch (err) {
       // Surfaces the friendly FK-violation message translated in dataHandlers.ts

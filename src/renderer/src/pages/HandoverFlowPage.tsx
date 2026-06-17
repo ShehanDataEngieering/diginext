@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import type { ItemUnitWithDetails, Project } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -168,6 +169,9 @@ export function HandoverFlowPage({
       await window.api.projects.setStatus(numericProjectId, 'completed')
 
       setSuccess('Handover recorded and project marked as completed.')
+      toast.success('Handover recorded', {
+        description: `Project marked as completed · ${units.length} unit(s) processed`
+      })
       setHandedOverBy('')
       setReceivedBy('')
       setNotes('')

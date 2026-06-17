@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { ArrowRightLeft, Boxes, Pencil, Plus, Trash2, Search } from 'lucide-react'
 import type {
   Item,
@@ -150,9 +151,11 @@ export function ItemUnitsPage({
     setError(null)
     try {
       if (dialogUnit === 'new') {
-        await window.api.itemUnits.create(input)
+        const created = await window.api.itemUnits.create(input)
+        toast.success('Unit added', { description: `${created.itemName}${created.serialId ? ` · ${created.serialId}` : ''}` })
       } else if (dialogUnit) {
-        await window.api.itemUnits.update(dialogUnit.id, input)
+        const updated = await window.api.itemUnits.update(dialogUnit.id, input)
+        toast.success('Unit updated', { description: `${updated.itemName}${updated.serialId ? ` · ${updated.serialId}` : ''}` })
       }
       setDialogUnit(null)
       await reload()
@@ -169,6 +172,7 @@ export function ItemUnitsPage({
     setError(null)
     try {
       await window.api.itemUnits.delete(unit.id)
+      toast.success('Unit deleted', { description: `${unit.itemName}${unit.serialId ? ` · ${unit.serialId}` : ''}` })
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -207,6 +211,12 @@ export function ItemUnitsPage({
         authorizedBy: null,
         notes: transferNotes.trim() || null,
         status: 'Completed'
+      })
+      const destName = toProjectId
+        ? projects.find((p) => p.id === toProjectId)?.name ?? 'another project'
+        : 'Available'
+      toast.success(`Transferred to ${destName}`, {
+        description: `${transferUnit.itemName}${transferUnit.serialId ? ` · ${transferUnit.serialId}` : ''}`
       })
       setTransferUnit(null)
       await reload()

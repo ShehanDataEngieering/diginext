@@ -80,6 +80,9 @@ const api = {
     importProject: (filePath: string): Promise<ImportSummary | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath)
   },
+  dialog: {
+    openFile: (): Promise<string | null> => ipcRenderer.invoke(IPC_CHANNELS.dialogOpenFile)
+  },
   transfers: {
     list: (): Promise<Transfer[]> => ipcRenderer.invoke(IPC_CHANNELS.transfersList),
     byProject: (projectId: number): Promise<Transfer[]> =>
