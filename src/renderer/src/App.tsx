@@ -12,6 +12,7 @@ import { TransferLogPage } from './pages/TransferLogPage'
 import { HandoverPage } from './pages/HandoverPage'
 import { HandoverFlowPage } from './pages/HandoverFlowPage'
 import { PhotoLogPage } from './pages/PhotoLogPage'
+import { ProjectPhotosPage } from './pages/ProjectPhotosPage'
 
 function App() {
   const [activeTab, setActiveTab] = useState<ViewTab>('dashboard')
@@ -67,6 +68,16 @@ function App() {
     setHandoverProjectSeed((prev) => ({ projectId, nonce: (prev?.nonce ?? 0) + 1 }))
   }
 
+  const [projectPhotosSeed, setProjectPhotosSeed] = useState<{
+    projectId: number
+    nonce: number
+  } | null>(null)
+
+  function handleViewProjectPhotos(projectId: number): void {
+    setActiveTab('project-photos')
+    setProjectPhotosSeed((prev) => ({ projectId, nonce: (prev?.nonce ?? 0) + 1 }))
+  }
+
   function handleSelectCategory(category: string): void {
     setActiveTab('dashboard')
     setCategorySeed((prev) => ({ category, nonce: (prev?.nonce ?? 0) + 1 }))
@@ -100,7 +111,10 @@ function App() {
             )}
             {activeTab === 'projects' && (
               <div className="h-full overflow-y-auto p-3.5">
-                <ProjectsPage onStartHandover={handleStartHandover} />
+                <ProjectsPage
+                  onStartHandover={handleStartHandover}
+                  onViewProjectPhotos={handleViewProjectPhotos}
+                />
               </div>
             )}
             {activeTab === 'item-units' && (
@@ -126,6 +140,14 @@ function App() {
             {activeTab === 'handover-flow' && (
               <div className="h-full overflow-y-auto p-3.5">
                 <HandoverFlowPage projectSeed={handoverProjectSeed} />
+              </div>
+            )}
+            {activeTab === 'project-photos' && (
+              <div className="h-full overflow-y-auto p-3.5">
+                <ProjectPhotosPage
+                  projectSeed={projectPhotosSeed}
+                  onBack={() => setActiveTab('projects')}
+                />
               </div>
             )}
             {activeTab === 'settings' && (

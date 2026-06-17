@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Download,
   FolderKanban,
+  Images,
   PackagePlus,
   Pencil,
   Plus,
@@ -45,9 +46,11 @@ function toInput(form: typeof emptyForm): ProjectInput {
 }
 
 export function ProjectsPage({
-  onStartHandover
+  onStartHandover,
+  onViewProjectPhotos
 }: {
   onStartHandover?: (projectId: number) => void
+  onViewProjectPhotos?: (projectId: number) => void
 } = {}): React.JSX.Element {
   const [projects, setProjects] = useState<Project[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -472,7 +475,7 @@ export function ProjectsPage({
               <th className="px-3 py-2 text-left">Updated by</th>
               <th className="px-3 py-2 text-left">Last updated</th>
               <th className="px-3 py-2 text-left">Status</th>
-              <th className="w-40 px-3 py-2" />
+              <th className="w-52 px-3 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -511,6 +514,14 @@ export function ProjectsPage({
                     </Button>
                     <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(project)}>
                       <Pencil size={14} strokeWidth={1.5} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Toolbox photos for this project"
+                      onClick={() => onViewProjectPhotos?.(project.id)}
+                    >
+                      <Images size={14} strokeWidth={1.5} />
                     </Button>
                     <Button
                       variant="ghost"
