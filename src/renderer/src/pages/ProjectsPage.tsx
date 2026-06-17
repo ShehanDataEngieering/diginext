@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import {
   Archive,
   ArrowRightLeft,
   ClipboardCheck,
   Download,
   FolderKanban,
+  PackagePlus,
   Pencil,
   Plus,
   RotateCcw,
@@ -108,10 +110,12 @@ export function ProjectsPage({
         const created = await window.api.projects.create(input)
         setDialogProject(null)
         await reload()
+        toast.success(`Project "${created.name}" created`, { description: 'You can now assign units to it.' })
         await openAssignUnits(created)
         return
       } else if (dialogProject) {
         await window.api.projects.update(dialogProject.id, input)
+        toast.success(`Project "${input.name}" updated`)
       }
       setDialogProject(null)
       await reload()
@@ -153,6 +157,7 @@ export function ProjectsPage({
     try {
       const result = await window.api.excel.exportProject(project.id)
       setNotice(`Exported "${project.name}" to ${result.filePath}`)
+      toast.success(`Exported "${project.name}"`, { description: result.filePath })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -171,8 +176,14 @@ export function ProjectsPage({
         setError('This file is not a valid Diginext export (missing metadata sheet).')
       } else {
         setImportSummary(summary)
-        setNotice(`Imported "${summary.projectName}" — ${summary.transfersCreated} transfer(s) recorded.`)
         await reload()
+        const parts = [
+          summary.itemsCreated    > 0 ? `${summary.itemsCreated} new item type(s)` : '',
+          summary.unitsAdded      > 0 ? `${summary.unitsAdded} unit(s) added` : '',
+          summary.unitsUpdated    > 0 ? `${summary.unitsUpdated} unit(s) updated` : '',
+          summary.transfersCreated > 0 ? `${summary.transfersCreated} transfer(s) recorded` : '',
+        ].filter(Boolean).join(' · ')
+        toast.success(`Imported "${summary.projectName}"`, { description: parts || 'No changes detected.' })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -185,6 +196,11 @@ export function ProjectsPage({
     const file = files?.[0]
     if (!file) return
     await runImport(window.api.photos.pathForFile(file))
+  }
+
+  async function handleBrowse(): Promise<void> {
+    const filePath = await window.api.dialog.openFile()
+    if (filePath) await runImport(filePath)
   }
 
   async function openTransferUnits(project: Project): Promise<void> {
@@ -238,6 +254,13 @@ export function ProjectsPage({
           status: 'Completed'
         })
       }
+      const destName = toProjectId
+        ? (projects?.find((p) => p.id === toProjectId)?.name ?? 'another project')
+        : 'Available'
+      const lines = selected.map((u) => `${u.itemName}${u.serialId ? ` (${u.serialId})` : ''}`)
+      toast.success(`${selected.length} unit(s) transferred to ${destName}`, {
+        description: lines.join(', ')
+      })
       setTransferProject(null)
       await reload()
     } catch (err) {
@@ -252,7 +275,7 @@ export function ProjectsPage({
     setSelectedAssignUnitIds(new Set())
     try {
       const units = await window.api.itemUnits.list({})
-      setAssignUnits(units.filter((u) => u.assignedProjectId !== project.id))
+      setAssignUnits(units.filter((u) => u.assignedProjectId === null))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -296,6 +319,10 @@ export function ProjectsPage({
           status: 'Completed'
         })
       }
+      const lines = selected.map((u) => `${u.itemName}${u.serialId ? ` (${u.serialId})` : ''}`)
+      toast.success(`${selected.length} unit(s) assigned to ${assignProject.name}`, {
+        description: lines.join(', ')
+      })
       setAssignProject(null)
       await reload()
     } catch (err) {
@@ -314,22 +341,12 @@ export function ProjectsPage({
       group.units.push(unit)
       groups.set(unit.itemId, group)
     }
-    // Available (unassigned) units are the most likely candidates to move
-    // into a brand-new project, so surface them first within each group.
-    for (const group of groups.values()) {
-      group.units.sort((a, b) => {
-        const aAvailable = a.assignedProjectId === null
-        const bAvailable = b.assignedProjectId === null
-        if (aAvailable !== bAvailable) return aAvailable ? -1 : 1
-        return 0
-      })
-    }
     return Array.from(groups.entries()).sort(([, a], [, b]) =>
       `${a.itemCategory} ${a.itemName}`.localeCompare(`${b.itemCategory} ${b.itemName}`)
     )
   })()
 
-  const availableAssignCount = assignUnits.filter((u) => u.assignedProjectId === null).length
+  const availableAssignCount = assignUnits.length
 
   return (
     <div className="flex flex-col gap-4">
@@ -364,19 +381,29 @@ export function ProjectsPage({
           dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
         }`}
       >
-        <div className="flex items-center gap-3">
-          <div className="text-muted-foreground/50 flex size-10 shrink-0 items-center justify-center rounded border border-dashed">
-            {importing ? (
-              <div className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              <Upload className="size-5" />
-            )}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="text-muted-foreground/50 flex size-10 shrink-0 items-center justify-center rounded border border-dashed">
+              {importing ? (
+                <div className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <Upload className="size-5" />
+              )}
+            </div>
+            <p className="text-muted-foreground">
+              {importing
+                ? 'Importing and reconciling…'
+                : 'Drag and drop a filled-in export sheet here, or browse to select a file.'}
+            </p>
           </div>
-          <p className="text-muted-foreground">
-            {importing
-              ? 'Importing and reconciling…'
-              : 'Drag and drop a filled-in export sheet here to import transfers.'}
-          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={importing}
+            onClick={() => void handleBrowse()}
+          >
+            Browse files
+          </Button>
         </div>
       </div>
 
@@ -469,6 +496,14 @@ export function ProjectsPage({
                     </Button>
                     <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(project)}>
                       <Pencil size={14} strokeWidth={1.5} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Assign units to this project"
+                      onClick={() => openAssignUnits(project)}
+                    >
+                      <PackagePlus size={14} strokeWidth={1.5} />
                     </Button>
                     <Button
                       variant="ghost"
@@ -663,8 +698,8 @@ export function ProjectsPage({
             <SheetTitle>Assign units to {assignProject?.name}</SheetTitle>
             <SheetDescription>
               {availableAssignCount > 0
-                ? `${availableAssignCount} unassigned unit${availableAssignCount === 1 ? '' : 's'} (shown first in each group) are available to move in, or reassign units from other projects below.`
-                : 'No unassigned units right now — pick units to reassign from other projects, or skip and assign later from the Item Units page.'}
+                ? `${availableAssignCount} available unit${availableAssignCount === 1 ? '' : 's'} ready to assign. To move units from another project, use the Transfer button (⇄) instead.`
+                : 'No available units right now. To move units from another project, use the Transfer button (⇄).'}
             </SheetDescription>
           </SheetHeader>
 
@@ -685,10 +720,8 @@ export function ProjectsPage({
                             onChange={() => toggleAssignUnitSelected(unit.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{unit.serialId ?? '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {unit.projectName ?? 'Available'}
-                        </TableCell>
+                        <TableCell className="font-medium">{unit.serialId ?? '(no serial)'}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">Available</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

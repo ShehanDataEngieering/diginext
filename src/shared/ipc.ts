@@ -27,6 +27,8 @@ export const IPC_CHANNELS = {
   excelExportProject: 'excel:export-project',
   excelImportProject: 'excel:import-project',
 
+  dialogOpenFile: 'dialog:open-file',
+
   photosImport: 'photos:import',
   photosRead: 'photos:read',
 

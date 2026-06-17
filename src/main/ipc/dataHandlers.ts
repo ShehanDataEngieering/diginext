@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import ExcelJS from 'exceljs'
@@ -142,6 +142,15 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
   ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string) => {
     return importAndReconcile(db, filePath)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.dialogOpenFile, async (): Promise<string | null> => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Select inventory sheet',
+      filters: [{ name: 'Excel files', extensions: ['xlsx', 'xls'] }],
+      properties: ['openFile']
+    })
+    return canceled || filePaths.length === 0 ? null : filePaths[0]
   })
 
   ipcMain.handle(IPC_CHANNELS.transfersList, () => listTransfers(db))

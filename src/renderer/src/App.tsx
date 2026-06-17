@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Toaster } from 'sonner'
 import type { Item, Project } from '@shared/ipc'
 import { AuthGate } from './auth/AuthGate'
 import { Sidebar, type ViewTab } from './components/Sidebar'
@@ -72,6 +73,8 @@ function App() {
   }
 
   return (
+    <>
+    <Toaster position="bottom-right" richColors closeButton />
     <AuthGate>
       <div
         className="flex h-screen w-screen flex-col overflow-hidden"
@@ -141,6 +144,7 @@ function App() {
         </div>
       </div>
     </AuthGate>
+    </>
   )
 }
 

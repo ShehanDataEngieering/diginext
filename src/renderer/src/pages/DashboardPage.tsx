@@ -207,8 +207,8 @@ export function DashboardPage({
     const categoryCount = new Set(filteredRows.map((r) => r.category)).size
     const initialStock = filteredRows.reduce((sum, r) => sum + r.initialStock, 0)
     const totalDeployed = filteredRows.reduce((sum, r) => sum + r.deployed, 0)
-    const zeroAvailable = filteredRows.filter((r) => r.derivedAvailable <= 0).length
-    return { totalItems, categoryCount, initialStock, totalDeployed, zeroAvailable }
+    const itemsWithAvailable = filteredRows.filter((r) => r.derivedAvailable > 0).length
+    return { totalItems, categoryCount, initialStock, totalDeployed, itemsWithAvailable }
   }, [filteredRows])
 
   function openEdit(row: DerivedRow): void {
@@ -269,10 +269,10 @@ export function DashboardPage({
           sub={`across ${rollup.projects.length} project${rollup.projects.length === 1 ? '' : 's'}`}
         />
         <StatCell
-          label="Zero available"
-          value={stats.zeroAvailable}
-          sub="items fully deployed"
-          valueClassName="text-red-600"
+          label="Items available"
+          value={stats.itemsWithAvailable}
+          sub="item types with stock"
+          valueClassName="text-green-600"
         />
       </div>
 

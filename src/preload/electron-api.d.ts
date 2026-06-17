@@ -55,6 +55,9 @@ interface Api {
     exportProject: (projectId: number) => Promise<ExportProjectResult>
     importProject: (filePath: string) => Promise<ImportSummary | null>
   }
+  dialog: {
+    openFile: () => Promise<string | null>
+  }
   transfers: {
     list: () => Promise<Transfer[]>
     byProject: (projectId: number) => Promise<Transfer[]>

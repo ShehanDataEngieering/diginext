@@ -1,3 +1,4 @@
+import { basename } from 'path'
 import { readFile, utils, type WorkBook } from 'xlsx'
 import { readExportMarker, type ExportMarker } from './exportProjectSheet'
 
@@ -35,12 +36,23 @@ export interface ImportedProjectSheet {
 
 const FIRST_DATA_ROW_INDEX = 10
 
-const COL_CATEGORY  = 1   // B — Category
-const COL_ITEM_NAME = 3   // D — Item Name
-const COL_QTY       = 4   // E — Quantity
-const COL_SERIAL    = 5   // F — Serial Number/s
-const COL_AUDIT_DATE = 7  // H — Initial Audit Date
-const COL_REMARKS   = 8   // I — Remarks
+// Column indices for app-exported sheets (have _diginext_meta)
+const COL_CATEGORY   = 1  // B
+const COL_ITEM_NAME  = 3  // D
+const COL_QTY        = 4  // E
+const COL_SERIAL     = 5  // F
+const COL_AUDIT_DATE = 7  // H
+const COL_REMARKS    = 8  // I
+
+// Column indices for original hand-maintained project sheets (no _diginext_meta)
+// Layout: A=Category, B=ItemNo, C=ItemName, D=Qty, E=Serial, F=Photo, G=AuditDate, H=Remarks
+const ORIG_COL_CATEGORY   = 0
+const ORIG_COL_ITEM_NO    = 1
+const ORIG_COL_ITEM_NAME  = 2
+const ORIG_COL_QTY        = 3
+const ORIG_COL_SERIAL     = 4
+const ORIG_COL_AUDIT_DATE = 6
+const ORIG_COL_REMARKS    = 7
 
 function parseSheetDate(value: string): string | null {
   if (!value) return null
@@ -67,7 +79,6 @@ function nullableCell(row: string[], index: number): string | null {
 export function parseImportedSheet(filePath: string): ImportedProjectSheet | null {
   const workbook: WorkBook = readFile(filePath)
   const marker = readExportMarker(workbook)
-  if (!marker) return null
 
   const visibleSheets = workbook.SheetNames.filter((name) => !name.startsWith('_'))
   if (visibleSheets.length === 0) return null
@@ -78,6 +89,13 @@ export function parseImportedSheet(filePath: string): ImportedProjectSheet | nul
 
   const rows = utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' })
 
+  // If no app metadata sheet, this is an original hand-maintained project sheet.
+  // Parse it with the original column layout and derive the project name.
+  if (!marker) {
+    return parseOriginalSheet(filePath, rows)
+  }
+
+  // --- App-exported sheet (has _diginext_meta) ---
   const allUnits: ImportedUnit[] = []
   const itemBlocks: ImportedItemBlock[] = []
 
@@ -96,18 +114,12 @@ export function parseImportedSheet(filePath: string): ImportedProjectSheet | nul
     const auditDate = parseSheetDate(cell(row, COL_AUDIT_DATE))
     const remarks   = nullableCell(row, COL_REMARKS)
 
-    // A new category or item name signals the start of a new item block.
     const newCategory = category !== '' ? category : currentCategory
     const newItemName = itemName  !== '' ? itemName  : currentItemName
 
-    if (
-      newCategory !== currentCategory ||
-      newItemName !== currentItemName
-    ) {
+    if (newCategory !== currentCategory || newItemName !== currentItemName) {
       currentCategory = newCategory
       currentItemName = newItemName
-
-      // Start a fresh block; declaredQty comes from column E on this header row.
       const qty = parseInt(qtyRaw, 10)
       currentBlock = {
         category: currentCategory ?? '',
@@ -119,21 +131,79 @@ export function parseImportedSheet(filePath: string): ImportedProjectSheet | nul
     }
 
     if (!currentCategory || !currentItemName || !currentBlock) continue
-
-    // Skip completely empty data rows (no serial, no date, no remarks).
     if (!serialId && !auditDate && !remarks) continue
 
-    const unit: ImportedUnit = {
-      category: currentCategory,
-      itemName: currentItemName,
-      serialId,
-      auditDate,
-      remarks
-    }
-
+    const unit: ImportedUnit = { category: currentCategory, itemName: currentItemName, serialId, auditDate, remarks }
     currentBlock.units.push(unit)
     allUnits.push(unit)
   }
 
   return { marker, units: allUnits, itemBlocks }
+}
+
+/**
+ * Parses an original hand-maintained project sheet (no _diginext_meta).
+ * Column layout: A=Category, B=ItemNo, C=ItemName, D=Qty, E=Serial, F=Photo, G=AuditDate, H=Remarks
+ * Project name is derived from the file name (strip "Inventory - " prefix and trailing copy suffixes).
+ */
+function parseOriginalSheet(filePath: string, rows: string[][]): ImportedProjectSheet | null {
+  // Derive project name from the filename, e.g.:
+  //   "Inventory - At North Copenhagen (1) (2).xlsx" → "At North Copenhagen"
+  const fileName = basename(filePath, '.xlsx')
+  const withoutPrefix = fileName.replace(/^Inventory\s*-\s*/i, '')
+  const projectName = withoutPrefix.replace(/(\s*\(\d+\))+$/, '').trim() || withoutPrefix.trim()
+
+  if (!projectName) return null
+
+  const syntheticMarker: ExportMarker = {
+    projectId: 0,
+    projectName,
+    exportedAt: new Date().toISOString()
+  }
+
+  const allUnits: ImportedUnit[] = []
+  const itemBlocks: ImportedItemBlock[] = []
+
+  let currentCategory: string | null = null
+  let currentItemName: string | null = null
+  let currentBlock: ImportedItemBlock | null = null
+
+  for (let i = FIRST_DATA_ROW_INDEX; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row || row.length === 0) continue
+
+    const itemNo   = cell(row, ORIG_COL_ITEM_NO)
+    const category = cell(row, ORIG_COL_CATEGORY)
+    const itemName = cell(row, ORIG_COL_ITEM_NAME)
+    const qtyRaw   = cell(row, ORIG_COL_QTY)
+    const serialId = nullableCell(row, ORIG_COL_SERIAL)
+    const auditDate = parseSheetDate(cell(row, ORIG_COL_AUDIT_DATE))
+    const remarks  = nullableCell(row, ORIG_COL_REMARKS)
+
+    // A row with a numeric item number starts a new item block.
+    if (/^\d+$/.test(itemNo)) {
+      currentCategory = category !== '' ? category : currentCategory
+      currentItemName = itemName !== '' ? itemName : null
+
+      if (currentCategory && currentItemName) {
+        const qty = parseInt(qtyRaw, 10)
+        currentBlock = {
+          category: currentCategory,
+          itemName: currentItemName,
+          declaredQty: isNaN(qty) ? 0 : qty,
+          units: []
+        }
+        itemBlocks.push(currentBlock)
+      }
+    }
+
+    if (!currentCategory || !currentItemName || !currentBlock) continue
+    if (!serialId && !auditDate && !remarks) continue
+
+    const unit: ImportedUnit = { category: currentCategory, itemName: currentItemName, serialId, auditDate, remarks }
+    currentBlock.units.push(unit)
+    allUnits.push(unit)
+  }
+
+  return { marker: syntheticMarker, units: allUnits, itemBlocks }
 }
