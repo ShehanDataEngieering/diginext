@@ -87,7 +87,21 @@ export function parseImportedSheet(filePath: string): ImportedProjectSheet | nul
   const sheet = workbook.Sheets[sheetName]
   if (!sheet) return null
 
-  const rows = utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' })
+  // Force the read range to start at A1. The export leaves column A (a blank
+  // left margin) and row 1 empty, so the sheet's stored `!ref` starts at B2 —
+  // which would make `sheet_to_json` index column B as 0 and drop row 1,
+  // shifting every fixed column/row constant below by one and silently parsing
+  // nothing. Pinning the origin to A1 keeps `COL_*` / `*_ROW_INDEX` stable
+  // whether or not leading rows/columns happen to be empty.
+  const fullRange = utils.decode_range(sheet['!ref'] ?? 'A1')
+  fullRange.s.c = 0
+  fullRange.s.r = 0
+  const rows = utils.sheet_to_json<string[]>(sheet, {
+    header: 1,
+    raw: false,
+    defval: '',
+    range: utils.encode_range(fullRange)
+  })
 
   // If no app metadata sheet, this is an original hand-maintained project sheet.
   // Parse it with the original column layout and derive the project name.

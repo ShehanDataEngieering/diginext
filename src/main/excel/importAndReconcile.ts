@@ -22,12 +22,19 @@ async function resolveOrCreateProject(
   markerId: number,
   markerName: string
 ): Promise<{ projectId: number; projectName: string; projectCreated: boolean }> {
-  // Try exact id match first (only meaningful for app-exported sheets where id > 0).
+  // Try the embedded id first (only meaningful for app-exported sheets where
+  // id > 0) — but only trust it when the stored project's name still matches
+  // the marker. Ids can drift across DB migrations (e.g. sqlite→postgres), and
+  // importing a sheet into the wrong project by a stale id would corrupt both
+  // the intended and the unintended project. When the name disagrees, fall
+  // through to name-based matching below.
   const byId = markerId > 0
     ? (await db.queryOne('SELECT id, name FROM projects WHERE id = ?', [markerId]) as ProjectRow | null)
     : null
 
-  if (byId) return { projectId: byId.id, projectName: byId.name, projectCreated: false }
+  if (byId && normalizeForMatch(byId.name) === normalizeForMatch(markerName)) {
+    return { projectId: byId.id, projectName: byId.name, projectCreated: false }
+  }
 
   // Exact case-insensitive name match.
   const byName = await db.queryOne(
