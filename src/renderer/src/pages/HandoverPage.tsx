@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ClipboardCheck, Plus } from 'lucide-react'
+import { ClipboardCheck, ChevronDown, Download, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { Handover } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 
@@ -9,8 +10,29 @@ export function HandoverPage({
   onNewHandover?: () => void
 } = {}): React.JSX.Element {
   const [handovers, setHandovers] = useState<Handover[]>([])
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [exportingId, setExportingId] = useState<number | null>(null)
+
+  const handleDownload = async (handoverId: number) => {
+    setExportingId(handoverId)
+    try {
+      const result = await window.api.excel.exportHandover(handoverId)
+      toast.success('Handover exported', { description: result.filePath })
+    } catch (err) {
+      toast.error('Export failed', { description: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setExportingId(null)
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const toggleExpanded = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
 
   useEffect(() => {
     loadHandovers()
@@ -77,46 +99,70 @@ export function HandoverPage({
     <div className="flex flex-col gap-3">
       {header}
 
-      {handovers.map((handover) => (
-        <div key={handover.id} className="overflow-hidden rounded-md border border-[#E5E5E5] bg-white">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-[#E5E5E5] bg-[#F5F5F7] px-3 py-2 text-xs">
-            <span className="text-sm font-semibold text-[#1D1D1F]">{handover.projectName}</span>
-            <span className="text-[#6E6E73]">Date: {handover.handoverDate}</span>
-            <span className="text-[#6E6E73]">Handed over by: {handover.handedOverBy || '—'}</span>
-            <span className="text-[#6E6E73]">Received by: {handover.receivedBy || '—'}</span>
-            {handover.notes && <span className="text-[#6E6E73]">Notes: {handover.notes}</span>}
+      {handovers.map((handover) => {
+        const open = expanded.has(handover.id)
+        return (
+          <div key={handover.id} className="overflow-hidden rounded-md border border-[#E5E5E5] bg-white">
+            <div className="flex items-center bg-[#F5F5F7] hover:bg-[#EBEBED] transition-colors">
+              <button
+                onClick={() => toggleExpanded(handover.id)}
+                className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left text-xs"
+              >
+                <span className="text-sm font-semibold text-[#1D1D1F]">{handover.projectName}</span>
+                <span className="text-[#6E6E73]">Date: {handover.handoverDate}</span>
+                <span className="text-[#6E6E73]">Handed over by: {handover.handedOverBy || '—'}</span>
+                <span className="text-[#6E6E73]">Received by: {handover.receivedBy || '—'}</span>
+                {handover.notes && <span className="text-[#6E6E73]">Notes: {handover.notes}</span>}
+                <ChevronDown
+                  size={14}
+                  strokeWidth={1.5}
+                  className={`ml-auto text-[#AEAEB2] transition-transform ${open ? 'rotate-180' : ''}`}
+                />
+              </button>
+              <button
+                onClick={() => void handleDownload(handover.id)}
+                disabled={exportingId === handover.id}
+                title="Download to Excel"
+                className="flex shrink-0 items-center gap-1 border-l border-[#E5E5E5] px-3 py-2 text-xs text-[#6E6E73] hover:text-[#1D1D1F] disabled:opacity-50"
+              >
+                <Download size={14} strokeWidth={1.5} />
+                {exportingId === handover.id ? 'Exporting…' : 'Excel'}
+              </button>
+            </div>
+            {open && (
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-[#F5F5F7]">
+                  <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
+                    <th className="px-3 py-2 text-left">Item</th>
+                    <th className="px-3 py-2 text-left">Category</th>
+                    <th className="px-3 py-2 text-left">Serial ID</th>
+                    <th className="px-3 py-2 text-left">Condition</th>
+                    <th className="px-3 py-2 text-left">Action</th>
+                    <th className="px-3 py-2 text-left">Destination</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {handover.items.map((item, idx) => (
+                    <tr
+                      key={item.id}
+                      className={`h-9 border-t border-[#F0F0F0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}
+                    >
+                      <td className="px-3 py-2 text-[#1D1D1F]">{item.itemName}</td>
+                      <td className="px-3 py-2 text-[#6E6E73]">{item.itemCategory}</td>
+                      <td className="px-3 py-2 font-medium text-[#1D1D1F]">
+                        {item.serialId || <span className="text-[#D1D1D6]">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-[#6E6E73]">{item.condition || '—'}</td>
+                      <td className="px-3 py-2 text-[#6E6E73]">{item.action || '—'}</td>
+                      <td className="px-3 py-2 text-[#6E6E73]">{item.transferProjectName || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-[#F5F5F7]">
-              <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
-                <th className="px-3 py-2 text-left">Item</th>
-                <th className="px-3 py-2 text-left">Category</th>
-                <th className="px-3 py-2 text-left">Serial ID</th>
-                <th className="px-3 py-2 text-left">Condition</th>
-                <th className="px-3 py-2 text-left">Action</th>
-                <th className="px-3 py-2 text-left">Destination</th>
-              </tr>
-            </thead>
-            <tbody>
-              {handover.items.map((item, idx) => (
-                <tr
-                  key={item.id}
-                  className={`h-9 border-t border-[#F0F0F0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'}`}
-                >
-                  <td className="px-3 py-2 text-[#1D1D1F]">{item.itemName}</td>
-                  <td className="px-3 py-2 text-[#6E6E73]">{item.itemCategory}</td>
-                  <td className="px-3 py-2 font-medium text-[#1D1D1F]">
-                    {item.serialId || <span className="text-[#D1D1D6]">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-[#6E6E73]">{item.condition || '—'}</td>
-                  <td className="px-3 py-2 text-[#6E6E73]">{item.action || '—'}</td>
-                  <td className="px-3 py-2 text-[#6E6E73]">{item.transferProjectName || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

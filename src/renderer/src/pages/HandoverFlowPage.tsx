@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Upload } from 'lucide-react'
-import type { ImportSummary, ItemUnitWithDetails, Project } from '@shared/ipc'
+import { Download, Upload } from 'lucide-react'
+import type { Handover, ImportSummary, ItemUnitWithDetails, Project } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +43,8 @@ export function HandoverFlowPage({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [completedHandover, setCompletedHandover] = useState<Handover | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   // Excel import
   const [importing, setImporting] = useState(false)
@@ -136,7 +138,7 @@ export function HandoverFlowPage({
     setError(null)
     setSuccess(null)
     try {
-      await window.api.handovers.create({
+      const createdHandover = await window.api.handovers.create({
         projectId: numericProjectId,
         handoverDate,
         handedOverBy: handedOverBy.trim() || null,
@@ -212,6 +214,7 @@ export function HandoverFlowPage({
       await window.api.projects.setStatus(numericProjectId, 'completed')
 
       setSuccess('Handover recorded and project marked as completed.')
+      setCompletedHandover(createdHandover)
       toast.success('Handover recorded', {
         description: `Project marked as completed · ${units.length} unit(s) processed`
       })
@@ -241,7 +244,32 @@ export function HandoverFlowPage({
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
-      {success && <p className="text-sm text-emerald-600">{success}</p>}
+      {success && (
+        <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p className="text-sm text-emerald-700">{success}</p>
+          {completedHandover && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true)
+                try {
+                  const result = await window.api.excel.exportHandover(completedHandover.id)
+                  toast.success('Handover exported', { description: result.filePath })
+                } catch (err) {
+                  toast.error('Export failed', { description: err instanceof Error ? err.message : String(err) })
+                } finally {
+                  setExporting(false)
+                }
+              }}
+            >
+              <Download size={14} strokeWidth={1.5} />
+              {exporting ? 'Exporting…' : 'Download to Excel'}
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 rounded-md border border-[#E5E5E5] bg-white p-4 lg:grid-cols-5">
         <div className="flex flex-col gap-1">

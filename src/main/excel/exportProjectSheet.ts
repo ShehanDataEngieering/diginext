@@ -54,23 +54,41 @@ export const EXPORT_META_SHEET = '_diginext_meta'
 const EXPORT_FORMAT_TAG = 'diginext-project-inventory-v1'
 
 const COLUMN_HEADERS = [
-  'Category',
-  'Item No',
-  'Item Name',
-  'Quantity',
-  'Serial Number/s',
-  'Initial-Photo Evidence',
-  'Initial Audit Date',
-  'Remarks',
-  'Hand Over-Photo Evidence',
-  'Hand Over-Date',
-  'Remarks'
+  'Category',                 // B
+  'Item No',                  // C
+  'Item Name',                // D
+  'Quantity',                 // E
+  'Serial Number/s',          // F
+  'Initial-Photo Evidence',   // G
+  'Initial Audit Date',       // H
+  'Remarks',                  // I
+  'Hand Over-Photo Evidence', // J
+  'Hand Over-Date',           // K
+  'Remarks',                  // L
+  'Condition',                // M  ← dropdown
+  'Action',                   // N  ← dropdown
+  'Destination'               // O
 ]
 
-// Column widths for the *data* columns (Category .. last Remarks) — column A
+// Column widths for the *data* columns (Category .. Destination) — column A
 // (the blank left margin) and the logo/title columns get their own widths
 // set directly against the worksheet below.
-const COLUMN_WIDTHS = [22, 9, 28, 10, 20, 24, 16, 26, 24, 16, 26]
+const COLUMN_WIDTHS = [22, 9, 28, 10, 20, 24, 16, 26, 24, 16, 26, 18, 30, 24]
+
+const CONDITIONS = ['Good', 'Damaged', 'Needs Repair', 'Lost']
+const ACTIONS    = ['Return to stock', 'Retain at site', 'Retire / Dispose', 'Transfer to another project']
+
+// ExcelJS omits showDropDown from its DataValidation type, but the Excel XML
+// attribute is inverted: showDropDown="1" = hidden. Force false via cast.
+function setDropdown(sheet: ExcelJS.Worksheet, row: number, col: number, options: string[]): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(sheet.getCell(row, col) as any).dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    showDropDown: false,
+    formulae: [`"${options.join(',')}"`]
+  }
+}
 
 // --- Brand palette, lifted from the reference template -----------------------
 // (See "look at the normal project... it should be like that" — the goal is
@@ -342,11 +360,13 @@ function writeColumnHeaders(sheet: ExcelJS.Worksheet): void {
 // --- Item row-blocks, grouped by category --------------------------------------
 
 const FIRST_ITEM_ROW = COLUMN_HEADER_ROW + 1
-const QUANTITY_COL = COLUMN_B + 3
-const SERIAL_COL = COLUMN_B + 4
-const PHOTO_COL = COLUMN_B + 5
+const QUANTITY_COL   = COLUMN_B + 3
+const SERIAL_COL     = COLUMN_B + 4
+const PHOTO_COL      = COLUMN_B + 5
 const AUDIT_DATE_COL = COLUMN_B + 6
-const REMARKS_COL = COLUMN_B + 7
+const REMARKS_COL    = COLUMN_B + 7
+const CONDITION_COL  = COLUMN_B + 11  // M
+const ACTION_COL     = COLUMN_B + 12  // N
 
 function writeItemRows(
   sheet: ExcelJS.Worksheet,
@@ -414,6 +434,8 @@ function writeItemRows(
         [AUDIT_DATE_COL, unit.auditDate ?? ''],
         [REMARKS_COL, unit.remarks ?? '']
       ])
+      setDropdown(sheet, nextRow, CONDITION_COL, CONDITIONS)
+      setDropdown(sheet, nextRow, ACTION_COL, ACTIONS)
       nextRow += 1
     }
 

@@ -54,6 +54,7 @@ interface Api {
   excel: {
     exportProject: (projectId: number) => Promise<ExportProjectResult>
     importProject: (filePath: string) => Promise<ImportSummary | null>
+    exportHandover: (handoverId: number) => Promise<ExportProjectResult>
   }
   dialog: {
     openFile: () => Promise<string | null>

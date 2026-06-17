@@ -237,16 +237,27 @@ export async function importAndReconcile(
             notes: `Quantity increased by ${delta} (${currentQty} → ${targetQty})`
           })
         } else if (delta < 0) {
-          const toRemove = currentAnon.slice(0, Math.abs(delta))
-          for (const u of toRemove) {
+          let removed = 0
+          for (const u of currentAnon) {
+            if (removed >= Math.abs(delta)) break
+            // Skip units referenced in handover_items — deleting them would
+            // violate the FK constraint and corrupt the handover record.
+            const ref = await tx.queryOne(
+              'SELECT 1 FROM handover_items WHERE item_unit_id = ?', [u.id]
+            )
+            if (ref) continue
             await tx.query('DELETE FROM item_units WHERE id = ?', [u.id])
+            removed++
           }
-          unitsRemoved += Math.abs(delta)
+          unitsRemoved += removed
+          const actualNew = currentQty - removed
           details.push({
             type: 'removed',
             itemName: block.itemName,
             serialId: null,
-            notes: `Quantity decreased by ${Math.abs(delta)} (${currentQty} → ${targetQty})`
+            notes: removed === Math.abs(delta)
+              ? `Quantity decreased by ${removed} (${currentQty} → ${actualNew})`
+              : `Quantity decreased by ${removed} of ${Math.abs(delta)} requested (${currentQty} → ${actualNew}; ${Math.abs(delta) - removed} unit(s) skipped — referenced in a handover)`
           })
         }
       }

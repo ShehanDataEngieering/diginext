@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
 
   excelExportProject: 'excel:export-project',
   excelImportProject: 'excel:import-project',
+  excelExportHandover: 'excel:export-handover',
 
   dialogOpenFile: 'dialog:open-file',
 

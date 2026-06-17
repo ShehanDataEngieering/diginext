@@ -78,7 +78,9 @@ const api = {
     exportProject: (projectId: number): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId),
     importProject: (filePath: string): Promise<ImportSummary | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath)
+      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath),
+    exportHandover: (handoverId: number): Promise<ExportProjectResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelExportHandover, handoverId)
   },
   dialog: {
     openFile: (): Promise<string | null> => ipcRenderer.invoke(IPC_CHANNELS.dialogOpenFile)

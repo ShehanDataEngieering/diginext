@@ -35,7 +35,7 @@ import {
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
 import { listTransfers, getTransfersByProject, createTransfer } from '../db/repositories/transfers'
-import { listHandovers, getHandoversByProject, createHandover } from '../db/repositories/handovers'
+import { listHandovers, getHandoversByProject, createHandover, getHandoverById } from '../db/repositories/handovers'
 import {
   listPhotoLog,
   createPhotoLogEntry,
@@ -44,6 +44,7 @@ import {
   setPhotoLogProject
 } from '../db/repositories/photoLog'
 import { buildProjectInventoryWorkbook, exportFileName } from '../excel/exportProjectSheet'
+import { buildHandoverWorkbook, handoverExportFileName, type HandoverUnitData } from '../excel/exportHandoverSheet'
 import { importAndReconcile } from '../excel/importAndReconcile'
 import { deleteManagedPhoto, importPhoto, readPhotoDataUrl } from '../photos/photoStore'
 
@@ -151,6 +152,39 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string) => {
     return importAndReconcile(db, filePath)
   })
+
+  ipcMain.handle(
+    IPC_CHANNELS.excelExportHandover,
+    async (_event, handoverId: number): Promise<ExportProjectResult> => {
+      const handover = await getHandoverById(db, handoverId)
+      if (!handover) throw new Error(`Handover ${handoverId} not found`)
+
+      const units = handover.projectId
+        ? await listItemUnits(db, { projectId: handover.projectId })
+        : []
+      const unitPhotoMap = new Map<number, HandoverUnitData>()
+      for (const u of units) {
+        unitPhotoMap.set(u.id, {
+          photoRef: u.photoEvidenceRef ?? null,
+          auditDate: u.auditDate ?? null,
+          remarks: u.remarks ?? null
+        })
+      }
+
+      const photoLog = handover.projectId
+        ? (await listPhotoLog(db)).filter((e) => e.projectId === handover.projectId)
+        : []
+
+      const dir = exportDirectory()
+      mkdirSync(dir, { recursive: true })
+      const filePath = join(dir, handoverExportFileName(handover))
+
+      const workbook = await buildHandoverWorkbook(handover, unitPhotoMap, photoLog)
+      await workbook.xlsx.writeFile(filePath)
+
+      return { filePath }
+    }
+  )
 
   ipcMain.handle(IPC_CHANNELS.dialogOpenFile, async (): Promise<string | null> => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
