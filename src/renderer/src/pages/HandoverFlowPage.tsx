@@ -294,40 +294,71 @@ export function HandoverFlowPage({
 
       {/* Import the filled-in Excel sheet from the site lead */}
       {projectId && (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); void handleImportDrop(e.dataTransfer.files) }}
-          className={`flex items-center justify-between gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors ${
-            dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="text-muted-foreground/50 flex size-9 shrink-0 items-center justify-center rounded border border-dashed">
-              {importing
-                ? <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                : <Upload className="size-4" />}
+        <>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); void handleImportDrop(e.dataTransfer.files) }}
+            className={`flex items-center justify-between gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors ${
+              dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-muted-foreground/50 flex size-9 shrink-0 items-center justify-center rounded border border-dashed">
+                {importing
+                  ? <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  : <Upload className="size-4" />}
+              </div>
+              <div>
+                <p className="text-[#1D1D1F] text-xs font-medium">
+                  {importing ? 'Importing filled-in Excel sheet…' : 'Import filled-in inventory sheet (optional)'}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  If the site lead updated the sheet, import it first to reconcile audit dates and remarks.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[#1D1D1F] text-xs font-medium">
-                {importing ? 'Importing filled-in Excel sheet…' : 'Import filled-in inventory sheet (optional)'}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                If the site lead updated the sheet, import it first to reconcile audit dates and remarks.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {importSummary && (
-              <span className="text-xs text-emerald-600 font-medium">
-                {importSummary.unitsUpdated + importSummary.unitsAdded} change(s) applied
-              </span>
-            )}
             <Button variant="outline" size="sm" disabled={importing} onClick={() => void handleBrowseImport()}>
               Browse files
             </Button>
           </div>
-        </div>
+
+          {importSummary && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-[#1D1D1F]">
+                Import complete — {importSummary.projectName}
+                {importSummary.projectCreated && (
+                  <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-normal text-emerald-700">
+                    new project created
+                  </span>
+                )}
+              </h3>
+              <ul className="space-y-1 text-sm text-[#1D1D1F]">
+                {importSummary.itemsCreated > 0 && (
+                  <li>🆕 New item types created: {importSummary.itemsCreated}</li>
+                )}
+                <li>➕ Units added: {importSummary.unitsAdded}</li>
+                <li>✏️ Units updated (audit / remarks): {importSummary.unitsUpdated}</li>
+                <li>🔄 Units transferred: {importSummary.transfersCreated}</li>
+              </ul>
+              {importSummary.details.length > 0 && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-medium text-[#6E6E73]">View details</summary>
+                  <ul className="mt-2 space-y-1 text-xs text-[#6E6E73]">
+                    {importSummary.details.map((detail, i) => (
+                      <li key={i} className={detail.type === 'removed' ? 'text-amber-700' : ''}>
+                        {detail.type === 'added' && `+ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                        {detail.type === 'removed' && `⚠ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                        {detail.type === 'transferred' &&
+                          `→ ${detail.itemName} (${detail.serialId ?? 'no serial'}) from ${detail.fromProject ?? 'unknown'}`}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
@@ -426,7 +457,10 @@ export function HandoverFlowPage({
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={handleSubmit} disabled={!projectId || units.length === 0 || saving}>
+        <Button
+          onClick={handleSubmit}
+          disabled={!projectId || (units.length === 0 && !importSummary) || saving}
+        >
           Record handover &amp; complete project
         </Button>
       </div>
