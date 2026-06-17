@@ -72,6 +72,7 @@ export function ProjectsPage({
   const [assignUnits, setAssignUnits] = useState<ItemUnitWithDetails[]>([])
   const [selectedAssignUnitIds, setSelectedAssignUnitIds] = useState<Set<number>>(new Set())
   const [assigning, setAssigning] = useState(false)
+  const [showCompleted, setShowCompleted] = useState(false)
 
   async function reload(): Promise<void> {
     try {
@@ -358,9 +359,23 @@ export function ProjectsPage({
             assignments.
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus size={16} strokeWidth={1.5} /> Add project
-        </Button>
+        <div className="flex items-center gap-2">
+          {(() => {
+            const completedCount = (projects ?? []).filter((p) => p.status === 'completed').length
+            return completedCount > 0 ? (
+              <button
+                type="button"
+                className="text-xs text-[#6E6E73] underline underline-offset-2 hover:text-[#1D1D1F]"
+                onClick={() => setShowCompleted((v) => !v)}
+              >
+                {showCompleted ? 'Hide completed' : `Show ${completedCount} completed`}
+              </button>
+            ) : null
+          })()}
+          <Button onClick={openCreate}>
+            <Plus size={16} strokeWidth={1.5} /> Add project
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
@@ -461,7 +476,7 @@ export function ProjectsPage({
             </tr>
           </thead>
           <tbody>
-            {projects?.map((project, idx) => (
+            {projects?.filter((p) => showCompleted || p.status === 'active').map((project, idx) => (
               <tr
                 key={project.id}
                 className={`group h-9 border-t border-[#F0F0F0] transition-colors duration-150 hover:bg-[#F0F6FF] ${

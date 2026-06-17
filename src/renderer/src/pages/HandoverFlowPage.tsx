@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { ItemUnitWithDetails, Project } from '@shared/ipc'
+import { Upload } from 'lucide-react'
+import type { ImportSummary, ItemUnitWithDetails, Project } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +44,11 @@ export function HandoverFlowPage({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Excel import
+  const [importing, setImporting] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+
   useEffect(() => {
     window.api.projects.list().then(setProjects)
   }, [])
@@ -52,12 +58,9 @@ export function HandoverFlowPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectSeed?.nonce])
 
-  useEffect(() => {
-    if (!projectId) {
-      setUnits([])
-      return
-    }
-    window.api.itemUnits.list({ projectId: Number(projectId) }).then((rows) => {
+  function reloadUnits(id: string): void {
+    if (!id) { setUnits([]); return }
+    window.api.itemUnits.list({ projectId: Number(id) }).then((rows) => {
       setUnits(rows)
       setUnitStates((prev) => {
         const next: Record<number, UnitState> = {}
@@ -67,7 +70,48 @@ export function HandoverFlowPage({
         return next
       })
     })
+  }
+
+  useEffect(() => {
+    reloadUnits(projectId)
   }, [projectId])
+
+  async function runImport(filePath: string): Promise<void> {
+    setImporting(true)
+    setError(null)
+    setImportSummary(null)
+    try {
+      const summary = await window.api.excel.importProject(filePath)
+      if (!summary) {
+        setError('Could not read this file — make sure it is a Diginext export or original inventory sheet.')
+      } else {
+        setImportSummary(summary)
+        // If the imported project matches the selected one, reload its units
+        if (projectId) reloadUnits(projectId)
+        const parts = [
+          summary.unitsAdded > 0 ? `${summary.unitsAdded} unit(s) added` : '',
+          summary.unitsUpdated > 0 ? `${summary.unitsUpdated} updated` : '',
+          summary.transfersCreated > 0 ? `${summary.transfersCreated} transfer(s)` : '',
+        ].filter(Boolean).join(' · ')
+        toast.success(`Imported "${summary.projectName}"`, { description: parts || 'No changes detected.' })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  async function handleImportDrop(files: FileList | null): Promise<void> {
+    const file = files?.[0]
+    if (!file) return
+    await runImport(window.api.photos.pathForFile(file))
+  }
+
+  async function handleBrowseImport(): Promise<void> {
+    const filePath = await window.api.dialog.openFile()
+    if (filePath) await runImport(filePath)
+  }
 
   function updateUnitState(unitId: number, field: keyof UnitState, value: string): void {
     setUnitStates((prev) => ({
@@ -114,7 +158,6 @@ export function HandoverFlowPage({
         })
       })
 
-      // Apply per-unit side effects based on the chosen action.
       for (const unit of units) {
         const state = unitStates[unit.id]
         if (!state?.action) continue
@@ -163,7 +206,7 @@ export function HandoverFlowPage({
             status: 'Completed'
           })
         }
-        // ACTION_RETAIN: unit stays assigned to this project — no change needed.
+        // ACTION_RETAIN: unit stays on this project — no change
       }
 
       await window.api.projects.setStatus(numericProjectId, 'completed')
@@ -178,6 +221,7 @@ export function HandoverFlowPage({
       setUnitStates({})
       setUnits([])
       setProjectId('')
+      setImportSummary(null)
       window.api.projects.list().then(setProjects)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -248,6 +292,44 @@ export function HandoverFlowPage({
         </div>
       </div>
 
+      {/* Import the filled-in Excel sheet from the site lead */}
+      {projectId && (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); void handleImportDrop(e.dataTransfer.files) }}
+          className={`flex items-center justify-between gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors ${
+            dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="text-muted-foreground/50 flex size-9 shrink-0 items-center justify-center rounded border border-dashed">
+              {importing
+                ? <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                : <Upload className="size-4" />}
+            </div>
+            <div>
+              <p className="text-[#1D1D1F] text-xs font-medium">
+                {importing ? 'Importing filled-in Excel sheet…' : 'Import filled-in inventory sheet (optional)'}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                If the site lead updated the sheet, import it first to reconcile audit dates and remarks.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {importSummary && (
+              <span className="text-xs text-emerald-600 font-medium">
+                {importSummary.unitsUpdated + importSummary.unitsAdded} change(s) applied
+              </span>
+            )}
+            <Button variant="outline" size="sm" disabled={importing} onClick={() => void handleBrowseImport()}>
+              Browse files
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-[#F5F5F7]">
@@ -279,9 +361,7 @@ export function HandoverFlowPage({
                     </SelectTrigger>
                     <SelectContent>
                       {CONDITIONS.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -296,9 +376,7 @@ export function HandoverFlowPage({
                     </SelectTrigger>
                     <SelectContent>
                       {ACTIONS.map((a) => (
-                        <SelectItem key={a} value={a}>
-                          {a}
-                        </SelectItem>
+                        <SelectItem key={a} value={a}>{a}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
