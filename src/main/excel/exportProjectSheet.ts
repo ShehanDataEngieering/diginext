@@ -520,9 +520,12 @@ function fillRange(
 
 // --- Images log sheet with embedded photos ---------------------------------
 
-const IMG_ROW_HEIGHT = 105 // pixels → roughly 80pt row height in Excel
-const IMG_DISPLAY_WIDTH = 140
-const IMG_DISPLAY_HEIGHT = 100
+// 3x the original display size for clearer, larger embedded photos.
+const IMG_ROW_HEIGHT = 315 // pixels → roughly 240pt row height in Excel
+const IMG_DISPLAY_WIDTH = 420
+const IMG_DISPLAY_HEIGHT = 300
+// Character-unit column width that comfortably fits IMG_DISPLAY_WIDTH (~7px/char).
+const IMG_PHOTO_COL_WIDTH = 62
 
 async function buildImagesSheet(
   workbook: ExcelJS.Workbook,
@@ -539,7 +542,7 @@ async function buildImagesSheet(
   const sheet = workbook.addWorksheet(sheetName)
 
   // Column layout: A=photo, B=serial, C=item name, D=category
-  sheet.getColumn(1).width = 22   // photo
+  sheet.getColumn(1).width = IMG_PHOTO_COL_WIDTH   // photo
   sheet.getColumn(2).width = 18   // serial
   sheet.getColumn(3).width = 28   // item name
   sheet.getColumn(4).width = 22   // category
@@ -615,7 +618,7 @@ async function buildToolboxPhotosSheet(
   const sheet = workbook.addWorksheet(sheetName)
 
   // Column layout: A=photo, B=label
-  sheet.getColumn(1).width = 22 // photo
+  sheet.getColumn(1).width = IMG_PHOTO_COL_WIDTH // photo
   sheet.getColumn(2).width = 40 // label
 
   const HEADER_COLS = ['Photo', 'Label']
