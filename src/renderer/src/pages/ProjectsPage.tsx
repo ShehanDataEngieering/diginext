@@ -708,11 +708,10 @@ export function ProjectsPage({
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Available (unassigned)</SelectItem>
                   {projects
-                    ?.filter((p) => p.id !== transferProject?.id)
+                    ?.filter((p) => p.id !== transferProject?.id && p.status === 'active')
                     .map((project) => (
                       <SelectItem key={project.id} value={String(project.id)}>
                         {project.name}
-                        {project.status === 'completed' ? ' (completed)' : ''}
                       </SelectItem>
                     ))}
                 </SelectContent>

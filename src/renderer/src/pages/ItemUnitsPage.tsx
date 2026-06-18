@@ -197,7 +197,15 @@ export function ItemUnitsPage({
         assignedProjectId: toProjectId,
         auditDate: transferUnit.auditDate,
         remarks: transferUnit.remarks,
-        status: transferUnit.status,
+        // Status must follow the destination, never the old value: a unit going
+        // onto a project is In Use; one returning to the pool is Available.
+        // (A Retired-Damaged unit shouldn't be transferable, but guard anyway.)
+        status:
+          transferUnit.status === 'Retired-Damaged'
+            ? 'Retired-Damaged'
+            : toProjectId === null
+              ? 'Available'
+              : 'In Use',
         photoEvidenceRef: transferUnit.photoEvidenceRef
       })
       await window.api.transfers.create({
@@ -414,12 +422,21 @@ export function ItemUnitsPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Unassigned (Available)</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                      {project.status === 'completed' ? ' (completed)' : ''}
-                    </SelectItem>
-                  ))}
+                  {projects
+                    // Only active sites are valid assignment targets, but keep
+                    // the unit's *current* project visible even if it's been
+                    // completed, so editing an existing unit doesn't silently
+                    // drop a value the user didn't touch.
+                    .filter(
+                      (project) =>
+                        project.status === 'active' || String(project.id) === form.assignedProjectId
+                    )
+                    .map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                        {project.status === 'completed' ? ' (completed)' : ''}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -503,12 +520,13 @@ export function ItemUnitsPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Available (unassigned)</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                      {project.status === 'completed' ? ' (completed)' : ''}
-                    </SelectItem>
-                  ))}
+                  {projects
+                    .filter((project) => project.status === 'active')
+                    .map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
