@@ -137,7 +137,7 @@ export function Sidebar({
           icon={<Icon size={16} strokeWidth={1.5} className="shrink-0 text-current" />}
           label={label}
           badge={
-            tab === 'dashboard' ? itemCount : tab === 'projects' ? projects.length : undefined
+            tab === 'dashboard' ? itemCount : tab === 'projects' ? activeProjects.length : undefined
           }
         />
       ))}
