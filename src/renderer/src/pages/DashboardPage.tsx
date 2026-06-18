@@ -50,19 +50,20 @@ interface DerivedRow extends DashboardRow {
   // per-project columns) — distinct from `totalUnits`, which also counts
   // units parked on completed projects or retired.
   deployed: number
-  // Per the design's tooltip definition: Available = Initial stock − Deployed.
-  // This is intentionally NOT the same as DashboardRow.available (which
-  // counts physically-unassigned tracked units) — that figure answers "how
-  // many spare units exist right now"; this one answers "how does the
-  // nominal baseline compare to what's currently out the door", and can go
-  // negative if more has been deployed than the recorded initial stock.
+  // Per the design's tooltip definition: Available = Initial stock − Deployed
+  // − Retired. This is intentionally NOT the same as DashboardRow.available
+  // (which counts physically-unassigned tracked units) — that figure answers
+  // "how many spare units exist right now"; this one answers "how does the
+  // nominal baseline compare to what's still in play", and can go negative if
+  // more has been deployed than the recorded initial stock. Retired/written-off
+  // units are removed from the baseline so they don't masquerade as spare stock.
   derivedAvailable: number
 }
 
 function deriveRows(rollup: DashboardRollup): DerivedRow[] {
   return rollup.rows.map((row) => {
     const deployed = Object.values(row.countsByProjectId).reduce((sum, n) => sum + n, 0)
-    return { ...row, deployed, derivedAvailable: row.initialStock - deployed }
+    return { ...row, deployed, derivedAvailable: row.initialStock - deployed - row.retired }
   })
 }
 
@@ -332,7 +333,7 @@ export function DashboardPage({
                       Available <Info size={11} className="text-gray-400" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Available = Initial stock − Total Deployed</TooltipContent>
+                  <TooltipContent>Available = Initial stock − Total Deployed − Retired</TooltipContent>
                 </Tooltip>
               </th>
               <th className="w-[90px] px-3 py-2 text-right">Total Deployed</th>

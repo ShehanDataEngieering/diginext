@@ -44,9 +44,17 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
   const perProjectByItem = new Map<number, Record<number, number>>()
   const availableByItem = new Map<number, number>()
   const totalByItem = new Map<number, number>()
+  const retiredByItem = new Map<number, number>()
 
   for (const { item_id, assigned_project_id, status, count } of counts) {
     totalByItem.set(item_id, (totalByItem.get(item_id) ?? 0) + count)
+
+    if (status === 'Retired-Damaged') {
+      // Written off — never deployed nor available. Counted on its own so the
+      // baseline math can exclude it.
+      retiredByItem.set(item_id, (retiredByItem.get(item_id) ?? 0) + count)
+      continue
+    }
 
     const onActiveProject = assigned_project_id !== null && activeProjectIds.has(assigned_project_id)
 
@@ -54,7 +62,7 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
       const perProject = perProjectByItem.get(item_id) ?? {}
       perProject[assigned_project_id!] = (perProject[assigned_project_id!] ?? 0) + count
       perProjectByItem.set(item_id, perProject)
-    } else if (status !== 'Retired-Damaged') {
+    } else {
       availableByItem.set(item_id, (availableByItem.get(item_id) ?? 0) + count)
     }
   }
@@ -66,7 +74,8 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
     initialStock: item.initial_stock,
     countsByProjectId: perProjectByItem.get(item.id) ?? {},
     available: availableByItem.get(item.id) ?? 0,
-    totalUnits: totalByItem.get(item.id) ?? 0
+    totalUnits: totalByItem.get(item.id) ?? 0,
+    retired: retiredByItem.get(item.id) ?? 0
   }))
 
   return { projects, rows }

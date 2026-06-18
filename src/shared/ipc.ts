@@ -142,6 +142,10 @@ export interface DashboardRow {
   countsByProjectId: Record<number, number>
   available: number
   totalUnits: number
+  // Units written off (status 'Retired-Damaged'). Tracked separately so the
+  // "Available = stock − deployed" baseline can exclude gear that can never be
+  // deployed again, rather than letting it masquerade as latent stock.
+  retired: number
 }
 
 export interface DashboardRollup {
