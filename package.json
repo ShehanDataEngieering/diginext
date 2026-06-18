@@ -10,7 +10,8 @@
     "preview": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "migrate:postgres": "npx tsx src/main/db/migrateToPostgres.ts"
+    "migrate:postgres": "npx tsx src/main/db/migrateToPostgres.ts",
+    "test:integration": "npx tsx test/integration/unitFlows.ts"
   },
   "author": "",
   "license": "UNLICENSED",
