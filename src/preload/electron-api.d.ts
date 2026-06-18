@@ -1,6 +1,8 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  AppUser,
   BackupInfo,
+  CreateUserInput,
   DashboardRollup,
   ExportProjectResult,
   Handover,
@@ -25,6 +27,12 @@ import type {
 interface Api {
   auth: {
     verifySession: (token: string) => Promise<boolean>
+    isAdmin: (token: string) => Promise<boolean>
+  }
+  users: {
+    list: (token: string) => Promise<AppUser[]>
+    create: (token: string, input: CreateUserInput) => Promise<AppUser>
+    delete: (token: string, id: string) => Promise<void>
   }
   db: {
     backupNow: () => Promise<BackupInfo | null>

@@ -3,6 +3,11 @@
 // sides can't drift out of sync.
 export const IPC_CHANNELS = {
   authVerifySession: 'auth:verify-session',
+  authIsAdmin: 'auth:is-admin',
+
+  usersList: 'users:list',
+  usersCreate: 'users:create',
+  usersDelete: 'users:delete',
   dbBackupNow: 'db:backup-now',
   dbListBackups: 'db:list-backups',
   dbRestoreBackup: 'db:restore-backup',
@@ -46,6 +51,23 @@ export const IPC_CHANNELS = {
   photoLogDelete: 'photo-log:delete',
   photoLogSetProject: 'photo-log:set-project'
 } as const
+
+// A user account managed through the Settings → User Management screen. These
+// are real Supabase Auth users; the app authorizes anyone with a valid session,
+// and admins (ADMIN_EMAILS) create/remove them. `isAdmin` reflects whether the
+// user's email is in the admin list — admins can't be deleted from the UI.
+export interface AppUser {
+  id: string
+  email: string
+  createdAt: string
+  lastSignInAt: string | null
+  isAdmin: boolean
+}
+
+export interface CreateUserInput {
+  email: string
+  password: string
+}
 
 // Shared shape for backup metadata sent across the IPC boundary — kept here
 // (rather than importing from src/main/db/backup.ts) so the renderer doesn't

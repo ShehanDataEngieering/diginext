@@ -1,15 +1,27 @@
 import { useState, useEffect } from 'react'
-import { DatabaseBackup, History, RotateCcw } from 'lucide-react'
+import { DatabaseBackup, History, LogOut, RotateCcw, ShieldCheck } from 'lucide-react'
 import { BackupInfo } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
+import { supabase } from '../auth/supabaseClient'
+import { UserManagementSection } from './UserManagementSection'
 
 export function SettingsPage(): React.JSX.Element {
   const [backups, setBackups] = useState<BackupInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [email, setEmail] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+
   useEffect(() => {
     loadBackups()
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setEmail(session?.user.email ?? null)
+      const t = session?.access_token ?? null
+      setToken(t)
+      if (t) setIsAdmin(await window.api.auth.isAdmin(t))
+    })
   }, [])
 
   const loadBackups = async () => {
@@ -50,10 +62,25 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-base font-semibold text-[#1D1D1F]">Settings</h2>
-        <p className="mt-0.5 text-xs text-[#6E6E73]">Database backups and maintenance.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-[#1D1D1F]">Settings</h2>
+          <p className="mt-0.5 text-xs text-[#6E6E73]">Account, users, and database maintenance.</p>
+        </div>
+        {email && (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-xs text-[#6E6E73]">
+              {isAdmin && <ShieldCheck size={13} strokeWidth={1.5} className="text-emerald-600" />}
+              Signed in as <span className="font-medium text-[#1D1D1F]">{email}</span>
+            </span>
+            <Button variant="outline" size="sm" onClick={() => supabase.auth.signOut()}>
+              <LogOut size={14} strokeWidth={1.5} /> Sign out
+            </Button>
+          </div>
+        )}
       </div>
+
+      {isAdmin && token && <UserManagementSection token={token} currentEmail={email} />}
 
       <div className="rounded-md border border-[#E5E5E5] bg-white">
         <div className="flex items-center justify-between border-b border-[#E5E5E5] px-4 py-3">

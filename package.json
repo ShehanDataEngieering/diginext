@@ -12,7 +12,8 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "migrate:postgres": "npx tsx src/main/db/migrateToPostgres.ts",
     "test:integration": "npx tsx test/integration/unitFlows.ts",
-    "test:surfaces": "npx tsx test/integration/exportPhotosAuth.ts"
+    "test:surfaces": "npx tsx test/integration/exportPhotosAuth.ts",
+    "test:users": "npx tsx test/integration/userManagement.ts"
   },
   "author": "",
   "license": "UNLICENSED",
