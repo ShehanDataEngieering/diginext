@@ -36,7 +36,6 @@ export const IPC_CHANNELS = {
 
   transfersList: 'transfers:list',
   transfersByProject: 'transfers:by-project',
-  transfersCreate: 'transfers:create',
 
   handoversList: 'handovers:list',
   handoversByProject: 'handovers:by-project',

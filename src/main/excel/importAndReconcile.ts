@@ -96,15 +96,6 @@ export async function importAndReconcile(
 
   const { marker, itemBlocks } = imported
 
-  const { projectId, projectName, projectCreated } = await resolveOrCreateProject(
-    db,
-    marker.projectId,
-    marker.projectName
-  )
-
-  const allUnits = await listItemUnits(db)
-  const currentProjectUnits = allUnits.filter((u) => u.assignedProjectId === projectId)
-
   const details: ImportDetail[] = []
   let unitsAdded     = 0
   let unitsUpdated   = 0
@@ -114,7 +105,26 @@ export async function importAndReconcile(
 
   const touchedItemIds = new Set<number>()
 
+  // Resolved inside the transaction so a newly-created project doesn't survive
+  // as an orphan if the reconciliation body fails partway.
+  let projectId = 0
+  let projectName = ''
+  let projectCreated = false
+
   await db.transaction(async (tx) => {
+    const resolved = await resolveOrCreateProject(tx, marker.projectId, marker.projectName)
+    projectId = resolved.projectId
+    projectName = resolved.projectName
+    projectCreated = resolved.projectCreated
+
+    // Importing inventory onto a project means it's live again — a completed
+    // site can't legitimately hold deployed units (the dashboard would heal
+    // them to "available", contradicting the assignment). Reactivate it.
+    await tx.query("UPDATE projects SET status = 'active' WHERE id = ? AND status = 'completed'", [projectId])
+
+    const allUnits = await listItemUnits(tx)
+    const currentProjectUnits = allUnits.filter((u) => u.assignedProjectId === projectId)
+
     for (const block of itemBlocks) {
       const { itemId, created } = await resolveOrCreateItem(tx, block.category, block.itemName)
       if (created) itemsCreated++
@@ -162,11 +172,28 @@ export async function importAndReconcile(
         }
 
         if (existingUnit.assignedProjectId !== projectId) {
+          // A written-off unit must not be silently reactivated by an import —
+          // leave it retired and flag it for manual review.
+          if (existingUnit.status === 'Retired-Damaged') {
+            details.push({
+              type: 'removed',
+              itemName: block.itemName,
+              serialId: importedUnit.serialId,
+              notes: 'In sheet but marked Retired/Damaged in system — skipped, review manually'
+            })
+            continue
+          }
+
           const fromProjectRow = existingUnit.assignedProjectId
             ? (await tx.queryOne('SELECT name FROM projects WHERE id = ?', [existingUnit.assignedProjectId]) as { name: string } | null)
             : null
 
-          await tx.query('UPDATE item_units SET assigned_project_id = ? WHERE id = ?', [projectId, existingUnit.id])
+          // Set status too, not just the assignment — a unit deployed to a
+          // project is In Use, regardless of its prior (e.g. Available) status.
+          await tx.query(
+            "UPDATE item_units SET assigned_project_id = ?, status = 'In Use' WHERE id = ?",
+            [projectId, existingUnit.id]
+          )
 
           await createTransfer(tx, {
             date: new Date().toISOString().slice(0, 10),
@@ -178,7 +205,7 @@ export async function importAndReconcile(
             transferredBy: 'Excel Import',
             authorizedBy: null,
             notes: `Transferred via ${marker.projectName} sheet import`,
-            status: 'Recorded'
+            status: 'Completed'
           })
 
           transfersCreated++

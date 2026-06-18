@@ -45,7 +45,7 @@ export async function createTransfer(db: DatabaseAdapter, input: TransferInput):
       input.transferredBy,
       input.authorizedBy,
       input.notes,
-      input.status ?? 'Recorded'
+      input.status ?? 'Completed'
     ]
   )
   return toTransfer(result.rows[0] as unknown as TransferRow)

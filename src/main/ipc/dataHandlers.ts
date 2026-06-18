@@ -16,8 +16,7 @@ import type {
   PhotoImportResult,
   PhotoLogEntryInput,
   ProjectInput,
-  ProjectStatus,
-  TransferInput
+  ProjectStatus
 } from '../../shared/ipc'
 import {
   createProject,
@@ -36,7 +35,7 @@ import {
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
-import { listTransfers, getTransfersByProject, createTransfer } from '../db/repositories/transfers'
+import { listTransfers, getTransfersByProject } from '../db/repositories/transfers'
 import { listHandovers, getHandoversByProject, createHandover, getHandoverById } from '../db/repositories/handovers'
 import {
   listPhotoLog,
@@ -202,7 +201,6 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.transfersByProject, (_event, projectId: number) =>
     getTransfersByProject(db, projectId)
   )
-  ipcMain.handle(IPC_CHANNELS.transfersCreate, (_event, input: TransferInput) => createTransfer(db, input))
 
   ipcMain.handle(IPC_CHANNELS.handoversList, () => listHandovers(db))
   ipcMain.handle(IPC_CHANNELS.handoversByProject, (_event, projectId: number) =>

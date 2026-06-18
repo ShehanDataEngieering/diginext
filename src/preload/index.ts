@@ -21,8 +21,7 @@ import {
   Project,
   ProjectInput,
   ProjectStatus,
-  Transfer,
-  TransferInput
+  Transfer
 } from '../shared/ipc'
 
 // Extended by later milestones with typed IPC calls (item/project CRUD, Excel
@@ -94,9 +93,7 @@ const api = {
   transfers: {
     list: (): Promise<Transfer[]> => ipcRenderer.invoke(IPC_CHANNELS.transfersList),
     byProject: (projectId: number): Promise<Transfer[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.transfersByProject, projectId),
-    create: (input: TransferInput): Promise<Transfer> =>
-      ipcRenderer.invoke(IPC_CHANNELS.transfersCreate, input)
+      ipcRenderer.invoke(IPC_CHANNELS.transfersByProject, projectId)
   },
   handovers: {
     list: (): Promise<Handover[]> => ipcRenderer.invoke(IPC_CHANNELS.handoversList),

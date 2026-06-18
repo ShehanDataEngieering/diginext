@@ -1,5 +1,6 @@
 import type { DatabaseAdapter } from '../adapter'
 import type { Project, ProjectInput, ProjectStatus } from '../../../shared/ipc'
+import { moveUnits } from './itemUnits'
 
 interface ProjectRow {
   id: number
@@ -52,6 +53,35 @@ export async function updateProject(db: DatabaseAdapter, id: number, input: Proj
 }
 
 export async function setProjectStatus(db: DatabaseAdapter, id: number, status: ProjectStatus): Promise<Project> {
+  if (status === 'completed') {
+    // Archiving = closing the site, so its gear must come back to the available
+    // pool — and unlike the old "just flip the flag" behaviour, that return is
+    // now recorded in the transfer log (via moveUnits) instead of silently
+    // healed by the dashboard. The whole thing is one transaction: units are
+    // released and the project is marked completed together, or not at all.
+    return db.transaction(async (tx) => {
+      const { rows } = await tx.query(
+        "SELECT id FROM item_units WHERE assigned_project_id = ? AND status <> 'Retired-Damaged'",
+        [id]
+      )
+      const unitIds = (rows as { id: number }[]).map((r) => Number(r.id))
+      if (unitIds.length > 0) {
+        await moveUnits(tx, {
+          unitIds,
+          toProjectId: null,
+          date: new Date().toISOString().slice(0, 10),
+          transferredBy: null,
+          authorizedBy: null,
+          notes: 'Returned to stock on project archive'
+        })
+      }
+      await tx.query('UPDATE projects SET status = ? WHERE id = ?', [status, id])
+      const row = await tx.queryOne('SELECT * FROM projects WHERE id = ?', [id])
+      if (!row) throw new Error(`Project ${id} not found`)
+      return toProject(row as unknown as ProjectRow)
+    })
+  }
+
   await db.query('UPDATE projects SET status = ? WHERE id = ?', [status, id])
   const row = await db.queryOne('SELECT * FROM projects WHERE id = ?', [id])
   if (!row) throw new Error(`Project ${id} not found`)

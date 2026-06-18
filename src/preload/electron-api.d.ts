@@ -19,8 +19,7 @@ import type {
   Project,
   ProjectInput,
   ProjectStatus,
-  Transfer,
-  TransferInput
+  Transfer
 } from '../shared/ipc'
 
 interface Api {
@@ -65,7 +64,6 @@ interface Api {
   transfers: {
     list: () => Promise<Transfer[]>
     byProject: (projectId: number) => Promise<Transfer[]>
-    create: (input: TransferInput) => Promise<Transfer>
   }
   handovers: {
     list: () => Promise<Handover[]>

@@ -294,7 +294,9 @@ async function main(): Promise<void> {
     const drow = rollup.rows.find((r) => r.itemId === di.id)!
     const deployed = Object.values(drow.countsByProjectId).reduce((s, n) => s + n, 0)
     eq('deployed counts only active project (3)', deployed, 3)
-    eq('available = unassigned + completed-project (6)', drow.available, 6)
+    // The 2 units on the archived project were released to the pool by
+    // setProjectStatus, joining the 4 already-unassigned → 6 available.
+    eq('available after archive release (6)', drow.available, 6)
     eq('retired counted separately (1)', drow.retired, 1)
     eq('total units (10)', drow.totalUnits, 10)
     eq('derivedAvailable = stock − deployed − retired (6)', drow.initialStock - deployed - drow.retired, 6)
@@ -312,17 +314,37 @@ async function main(): Promise<void> {
     check('deleting item with no units succeeds', true)
 
     // =======================================================================
-    console.log('\nProject archive — units stay assigned but rollup heals them to Available')
+    console.log('\nProject archive — returns units to the pool WITH a transfer record')
     // =======================================================================
-    const arItem = await createItem(db, { category: 'Test', name: 'Archivable', initialStock: 1 })
+    const arItem = await createItem(db, { category: 'Test', name: 'Archivable', initialStock: 2 })
     const arProj = await createProject(db, { name: 'Archive Me', location: null, updatedBy: null, lastUpdatedDate: null })
     const arUnit = await createItemUnit(db, unitInput({ itemId: arItem.id, serialId: 'AR-1', assignedProjectId: arProj.id, status: 'In Use' }))
+    const arRetired = await createItemUnit(db, unitInput({ itemId: arItem.id, serialId: 'AR-RET', assignedProjectId: arProj.id, status: 'Retired-Damaged' }))
     await setProjectStatus(db, arProj.id, 'completed')
     const arAfter = await getItemUnitById(db, arUnit.id)
-    eq('archive does NOT move the unit (still assigned)', arAfter?.assignedProjectId, arProj.id)
-    const arRollup = await getDashboardRollup(db)
-    const arRow = arRollup.rows.find((r) => r.itemId === arItem.id)!
-    eq('rollup heals archived-project unit to available', arRow.available, 1)
+    eq('archived project releases the unit (unassigned)', arAfter?.assignedProjectId, null)
+    eq('released unit is Available', arAfter?.status, 'Available')
+    eq('release recorded in transfer log', await transferCount(db, 'AR-1'), 1)
+    const arRetAfter = await getItemUnitById(db, arRetired.id)
+    eq('retired unit not released by archive (stays put)', arRetAfter?.assignedProjectId, arProj.id)
+    eq('retired unit stays retired', arRetAfter?.status, 'Retired-Damaged')
+    const arProjAfter = await db.queryOne('SELECT status FROM projects WHERE id = ?', [arProj.id])
+    eq('project marked completed', (arProjAfter as { status: string }).status, 'completed')
+
+    // =======================================================================
+    console.log('\nDashboard rollup — heals legacy units stranded on a completed project')
+    // =======================================================================
+    // Simulate pre-fix data: a unit left assigned to an already-completed
+    // project (bypassing setProjectStatus, which would now release it). The
+    // rollup must still surface it as available rather than losing it.
+    const lgItem = await createItem(db, { category: 'Test', name: 'Legacy', initialStock: 1 })
+    const lgProj = await createProject(db, { name: 'Legacy Done', location: null, updatedBy: null, lastUpdatedDate: null })
+    const lgUnit = await createItemUnit(db, unitInput({ itemId: lgItem.id, serialId: 'LG-1', assignedProjectId: lgProj.id, status: 'In Use' }))
+    await db.query("UPDATE projects SET status = 'completed' WHERE id = ?", [lgProj.id])
+    const lgRollup = await getDashboardRollup(db)
+    const lgRow = lgRollup.rows.find((r) => r.itemId === lgItem.id)!
+    eq('legacy unit still assigned to completed project', (await getItemUnitById(db, lgUnit.id))?.assignedProjectId, lgProj.id)
+    eq('rollup heals legacy stranded unit to available', lgRow.available, 1)
   } finally {
     // Tear down the isolated schema no matter what.
     try {

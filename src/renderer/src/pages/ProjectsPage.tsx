@@ -135,8 +135,9 @@ export function ProjectsPage({
     if (
       next === 'completed' &&
       !confirm(
-        `Archive "${project.name}"? It stays visible for history, but won't get its own ` +
-          'dashboard column or appear as an assignment target for new units.'
+        `Archive "${project.name}"? Any units still assigned to it are returned to the ` +
+          'available pool (recorded in the transfer log). It stays visible for history, but ' +
+          "won't get its own dashboard column or accept new assignments."
       )
     ) {
       return
