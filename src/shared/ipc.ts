@@ -21,6 +21,7 @@ export const IPC_CHANNELS = {
   itemUnitsCreate: 'item-units:create',
   itemUnitsUpdate: 'item-units:update',
   itemUnitsDelete: 'item-units:delete',
+  itemUnitsMove: 'item-units:move',
 
   dashboardRollup: 'dashboard:rollup',
 
@@ -114,6 +115,27 @@ export interface ItemUnitInput {
   remarks: string | null
   status: UnitStatus
   photoEvidenceRef: string | null
+}
+
+// Moves a set of units to a single destination (a project, or null = back to
+// the available pool) in ONE transaction: each unit's assignment + status is
+// updated and a matching transfer-log row is written, all-or-nothing. Backs
+// the "assign units", "bulk transfer out", and single-unit transfer flows so a
+// mid-batch failure can't leave units half-moved with no audit record.
+export interface MoveUnitsInput {
+  unitIds: number[]
+  toProjectId: number | null
+  date: string
+  transferredBy: string | null
+  authorizedBy: string | null
+  notes: string | null
+}
+
+export interface MoveUnitsResult {
+  // Units actually moved (excludes retired units and no-op same-destination moves).
+  movedCount: number
+  // Retired/written-off units in the batch — silently left in place, never moved.
+  skippedRetired: number
 }
 
 // A unit joined with its item and (if assigned) project names — what the

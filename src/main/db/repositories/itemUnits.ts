@@ -1,5 +1,13 @@
 import type { DatabaseAdapter } from '../adapter'
-import type { ItemUnit, ItemUnitFilter, ItemUnitInput, ItemUnitWithDetails, UnitStatus } from '../../../shared/ipc'
+import type {
+  ItemUnit,
+  ItemUnitFilter,
+  ItemUnitInput,
+  ItemUnitWithDetails,
+  MoveUnitsInput,
+  MoveUnitsResult,
+  UnitStatus
+} from '../../../shared/ipc'
 
 interface ItemUnitRow {
   id: number
@@ -130,4 +138,71 @@ export async function updateItemUnit(
 
 export async function deleteItemUnit(db: DatabaseAdapter, id: number): Promise<void> {
   await db.query('DELETE FROM item_units WHERE id = ?', [id])
+}
+
+interface MoveSnapshotRow {
+  item_id: number
+  serial_id: string | null
+  assigned_project_id: number | null
+  status: UnitStatus
+}
+
+/**
+ * Atomically relocates a batch of units to one destination (a project, or null
+ * = the available pool). For each unit: re-derives status from the destination
+ * (In Use on a project, Available off it), updates the assignment, and writes a
+ * transfer-log row capturing where it came from. The whole batch runs in a
+ * single transaction, so a failure on unit N rolls back units 1..N-1 too —
+ * nothing is left half-moved or missing its audit trail.
+ *
+ * Retired/written-off units are never moved (skipped, counted separately), and
+ * a unit already at the destination is a no-op (no spurious self-transfer row).
+ */
+export async function moveUnits(db: DatabaseAdapter, input: MoveUnitsInput): Promise<MoveUnitsResult> {
+  return db.transaction(async (tx) => {
+    let movedCount = 0
+    let skippedRetired = 0
+
+    for (const unitId of input.unitIds) {
+      const unit = (await tx.queryOne(
+        'SELECT item_id, serial_id, assigned_project_id, status FROM item_units WHERE id = ?',
+        [unitId]
+      )) as unknown as MoveSnapshotRow | null
+      if (!unit) throw new Error(`Item unit ${unitId} not found`)
+
+      if (unit.status === 'Retired-Damaged') {
+        skippedRetired++
+        continue
+      }
+
+      const fromProjectId = unit.assigned_project_id ? Number(unit.assigned_project_id) : null
+      if (fromProjectId === input.toProjectId) continue // already there — nothing to record
+
+      const newStatus: UnitStatus = input.toProjectId === null ? 'Available' : 'In Use'
+      await tx.query('UPDATE item_units SET assigned_project_id = ?, status = ? WHERE id = ?', [
+        input.toProjectId,
+        newStatus,
+        unitId
+      ])
+      await tx.query(
+        `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.date,
+          unit.item_id,
+          unit.serial_id,
+          1,
+          fromProjectId,
+          input.toProjectId,
+          input.transferredBy,
+          input.authorizedBy,
+          input.notes,
+          'Completed'
+        ]
+      )
+      movedCount++
+    }
+
+    return { movedCount, skippedRetired }
+  })
 }

@@ -12,6 +12,7 @@ import type {
   ItemInput,
   ItemUnitFilter,
   ItemUnitInput,
+  MoveUnitsInput,
   PhotoImportResult,
   PhotoLogEntryInput,
   ProjectInput,
@@ -31,6 +32,7 @@ import {
   deleteItemUnit,
   getItemUnitById,
   listItemUnits,
+  moveUnits,
   updateItemUnit
 } from '../db/repositories/itemUnits'
 import { getDashboardRollup } from '../db/repositories/dashboard'
@@ -104,6 +106,7 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
     await deleteItemUnit(db, id)
     if (existing) await deleteManagedPhoto(existing.photoEvidenceRef)
   })
+  ipcMain.handle(IPC_CHANNELS.itemUnitsMove, (_event, input: MoveUnitsInput) => moveUnits(db, input))
 
   ipcMain.handle(IPC_CHANNELS.dashboardRollup, () => getDashboardRollup(db))
 

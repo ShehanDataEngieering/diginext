@@ -11,6 +11,8 @@ import type {
   ItemUnitFilter,
   ItemUnitInput,
   ItemUnitWithDetails,
+  MoveUnitsInput,
+  MoveUnitsResult,
   PhotoImportResult,
   PhotoLogEntry,
   PhotoLogEntryInput,
@@ -47,6 +49,7 @@ interface Api {
     create: (input: ItemUnitInput) => Promise<ItemUnitWithDetails>
     update: (id: number, input: ItemUnitInput) => Promise<ItemUnitWithDetails>
     delete: (id: number) => Promise<void>
+    move: (input: MoveUnitsInput) => Promise<MoveUnitsResult>
   }
   dashboard: {
     rollup: () => Promise<DashboardRollup>

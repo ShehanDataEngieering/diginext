@@ -41,8 +41,18 @@ interface FormState {
   assignedProjectId: string
   auditDate: string
   remarks: string
-  status: UnitStatus
+  // Status is no longer a free-form choice: a unit is In Use when it's on a
+  // project and Available when it isn't. "Retired-Damaged" is the one manual
+  // override, so the form carries it as a boolean and derives the rest.
+  retired: boolean
   photoEvidenceRef: string
+}
+
+// Single source of truth for a unit's status given the form's assignment +
+// retired flag — so the persisted status can never contradict the assignment.
+function deriveStatus(assignedProjectId: string, retired: boolean): UnitStatus {
+  if (retired) return 'Retired-Damaged'
+  return assignedProjectId !== UNASSIGNED ? 'In Use' : 'Available'
 }
 
 function emptyForm(defaultItemId?: number): FormState {
@@ -52,7 +62,7 @@ function emptyForm(defaultItemId?: number): FormState {
     assignedProjectId: UNASSIGNED,
     auditDate: '',
     remarks: '',
-    status: 'Available',
+    retired: false,
     photoEvidenceRef: ''
   }
 }
@@ -66,7 +76,7 @@ function toInput(form: FormState): ItemUnitInput | null {
     assignedProjectId: form.assignedProjectId === UNASSIGNED ? null : Number(form.assignedProjectId),
     auditDate: form.auditDate.trim() || null,
     remarks: form.remarks.trim() || null,
-    status: form.status,
+    status: deriveStatus(form.assignedProjectId, form.retired),
     photoEvidenceRef: form.photoEvidenceRef.trim() || null
   }
 }
@@ -138,7 +148,7 @@ export function ItemUnitsPage({
       assignedProjectId: unit.assignedProjectId === null ? UNASSIGNED : String(unit.assignedProjectId),
       auditDate: unit.auditDate ?? '',
       remarks: unit.remarks ?? '',
-      status: unit.status,
+      retired: unit.status === 'Retired-Damaged',
       photoEvidenceRef: unit.photoEvidenceRef ?? ''
     })
     setDialogUnit(unit)
@@ -191,34 +201,15 @@ export function ItemUnitsPage({
     setTransferring(true)
     setError(null)
     try {
-      await window.api.itemUnits.update(transferUnit.id, {
-        itemId: transferUnit.itemId,
-        serialId: transferUnit.serialId,
-        assignedProjectId: toProjectId,
-        auditDate: transferUnit.auditDate,
-        remarks: transferUnit.remarks,
-        // Status must follow the destination, never the old value: a unit going
-        // onto a project is In Use; one returning to the pool is Available.
-        // (A Retired-Damaged unit shouldn't be transferable, but guard anyway.)
-        status:
-          transferUnit.status === 'Retired-Damaged'
-            ? 'Retired-Damaged'
-            : toProjectId === null
-              ? 'Available'
-              : 'In Use',
-        photoEvidenceRef: transferUnit.photoEvidenceRef
-      })
-      await window.api.transfers.create({
-        date: new Date().toISOString().slice(0, 10),
-        itemId: transferUnit.itemId,
-        serialId: transferUnit.serialId,
-        qty: 1,
-        fromProjectId: transferUnit.assignedProjectId,
+      // Atomic: assignment + status (derived from the destination) + transfer-log
+      // row commit together in the main process.
+      await window.api.itemUnits.move({
+        unitIds: [transferUnit.id],
         toProjectId,
+        date: new Date().toISOString().slice(0, 10),
         transferredBy: null,
         authorizedBy: null,
-        notes: transferNotes.trim() || null,
-        status: 'Completed'
+        notes: transferNotes.trim() || null
       })
       const destName = toProjectId
         ? projects.find((p) => p.id === toProjectId)?.name ?? 'another project'
@@ -443,19 +434,25 @@ export function ItemUnitsPage({
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm((f) => ({ ...f, status: v as UnitStatus }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Available">Available</SelectItem>
-                    <SelectItem value="In Use">In Use</SelectItem>
-                    <SelectItem value="Retired-Damaged">Retired-Damaged</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Derived from the assignment, not free-form, so it can't
+                    contradict the project. Retiring is the one manual override. */}
+                <div className="flex h-9 items-center gap-2.5">
+                  <span
+                    className={`inline-block rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${
+                      STATUS_PILL[deriveStatus(form.assignedProjectId, form.retired)]
+                    }`}
+                  >
+                    {deriveStatus(form.assignedProjectId, form.retired)}
+                  </span>
+                  <label className="flex items-center gap-1.5 text-xs text-[#6E6E73]">
+                    <input
+                      type="checkbox"
+                      checked={form.retired}
+                      onChange={(e) => setForm((f) => ({ ...f, retired: e.target.checked }))}
+                    />
+                    Retired / Damaged
+                  </label>
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="unit-audit-date">Audit date</Label>

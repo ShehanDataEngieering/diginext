@@ -235,29 +235,15 @@ export function ProjectsPage({
     setError(null)
     try {
       const selected = transferUnits.filter((u) => selectedUnitIds.has(u.id))
-      for (const unit of selected) {
-        await window.api.itemUnits.update(unit.id, {
-          itemId: unit.itemId,
-          serialId: unit.serialId,
-          assignedProjectId: toProjectId,
-          auditDate: unit.auditDate,
-          remarks: unit.remarks,
-          status: toProjectId === null ? 'Available' : 'In Use',
-          photoEvidenceRef: unit.photoEvidenceRef
-        })
-        await window.api.transfers.create({
-          date: new Date().toISOString().slice(0, 10),
-          itemId: unit.itemId,
-          serialId: unit.serialId,
-          qty: 1,
-          fromProjectId: unit.assignedProjectId,
-          toProjectId,
-          transferredBy: null,
-          authorizedBy: null,
-          notes: null,
-          status: 'Completed'
-        })
-      }
+      // One atomic batch: assignments + transfer-log rows commit together.
+      await window.api.itemUnits.move({
+        unitIds: selected.map((u) => u.id),
+        toProjectId,
+        date: new Date().toISOString().slice(0, 10),
+        transferredBy: null,
+        authorizedBy: null,
+        notes: null
+      })
       const destName = toProjectId
         ? (projects?.find((p) => p.id === toProjectId)?.name ?? 'another project')
         : 'Available'
@@ -313,29 +299,15 @@ export function ProjectsPage({
     setError(null)
     try {
       const selected = assignUnits.filter((u) => selectedAssignUnitIds.has(u.id))
-      for (const unit of selected) {
-        await window.api.itemUnits.update(unit.id, {
-          itemId: unit.itemId,
-          serialId: unit.serialId,
-          assignedProjectId: assignProject.id,
-          auditDate: unit.auditDate,
-          remarks: unit.remarks,
-          status: 'In Use',
-          photoEvidenceRef: unit.photoEvidenceRef
-        })
-        await window.api.transfers.create({
-          date: new Date().toISOString().slice(0, 10),
-          itemId: unit.itemId,
-          serialId: unit.serialId,
-          qty: 1,
-          fromProjectId: unit.assignedProjectId,
-          toProjectId: assignProject.id,
-          transferredBy: null,
-          authorizedBy: null,
-          notes: null,
-          status: 'Completed'
-        })
-      }
+      // One atomic batch: assignments + transfer-log rows commit together.
+      await window.api.itemUnits.move({
+        unitIds: selected.map((u) => u.id),
+        toProjectId: assignProject.id,
+        date: new Date().toISOString().slice(0, 10),
+        transferredBy: null,
+        authorizedBy: null,
+        notes: null
+      })
       const lines = selected.map((u) => `${u.itemName}${u.serialId ? ` (${u.serialId})` : ''}`)
       toast.success(`${selected.length} unit(s) assigned to ${assignProject.name}`, {
         description: lines.join(', ')

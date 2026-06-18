@@ -13,6 +13,8 @@ import {
   ItemUnitFilter,
   ItemUnitInput,
   ItemUnitWithDetails,
+  MoveUnitsInput,
+  MoveUnitsResult,
   PhotoImportResult,
   PhotoLogEntry,
   PhotoLogEntryInput,
@@ -69,7 +71,11 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.itemUnitsCreate, input),
     update: (id: number, input: ItemUnitInput): Promise<ItemUnitWithDetails> =>
       ipcRenderer.invoke(IPC_CHANNELS.itemUnitsUpdate, id, input),
-    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.itemUnitsDelete, id)
+    delete: (id: number): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.itemUnitsDelete, id),
+    // Atomic batch move (assign / transfer-out / return-to-pool) — updates each
+    // unit's assignment + status and writes transfer-log rows in one transaction.
+    move: (input: MoveUnitsInput): Promise<MoveUnitsResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.itemUnitsMove, input)
   },
   dashboard: {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
