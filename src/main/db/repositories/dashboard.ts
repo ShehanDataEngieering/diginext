@@ -11,6 +11,7 @@ interface ItemRow {
 interface CountRow {
   item_id: number
   assigned_project_id: number | null
+  status: string
   count: number
 }
 
@@ -23,49 +24,50 @@ export async function getDashboardRollup(db: DatabaseAdapter): Promise<Dashboard
   const { rows: itemRows } = await db.query('SELECT * FROM items ORDER BY category, name')
   const items = itemRows as unknown as ItemRow[]
 
+  // Group by status too, so we can tell apart deployed / available / retired
+  // units that happen to share an item and project.
   const { rows: countRows } = await db.query(
-    `SELECT item_id, assigned_project_id, COUNT(*)::int AS count
+    `SELECT item_id, assigned_project_id, status, COUNT(*)::int AS count
      FROM item_units
-     GROUP BY item_id, assigned_project_id`
+     GROUP BY item_id, assigned_project_id, status`
   )
   const counts = countRows as unknown as CountRow[]
 
-  const countsByItem = new Map<number, Map<number | null, number>>()
-  for (const { item_id, assigned_project_id, count } of counts) {
-    let perProject = countsByItem.get(item_id)
-    if (!perProject) {
-      perProject = new Map()
-      countsByItem.set(item_id, perProject)
-    }
-    perProject.set(assigned_project_id, Number(count))
-  }
-
   const activeProjectIds = new Set(projects.map((p) => p.id))
 
-  const rows: DashboardRow[] = items.map((item) => {
-    const perProject = countsByItem.get(item.id)
-    const countsByProjectId: Record<number, number> = {}
-    let totalUnits = 0
-    let available = 0
+  // Pre-aggregate per item: deployed counts per active project, plus a single
+  // "available" tally. A unit counts as available when it is NOT currently
+  // deployed to an *active* project and is not retired — this includes units
+  // sitting on a completed/archived project (gear that came back when the site
+  // closed) as well as units explicitly returned to stock, so nothing gets
+  // stranded in an invisible limbo after a handover or archive.
+  const perProjectByItem = new Map<number, Record<number, number>>()
+  const availableByItem = new Map<number, number>()
+  const totalByItem = new Map<number, number>()
 
-    if (perProject) {
-      for (const [projectId, count] of perProject) {
-        totalUnits += count
-        if (projectId === null) available += count
-        else if (activeProjectIds.has(projectId)) countsByProjectId[projectId] = count
-      }
-    }
+  for (const { item_id, assigned_project_id, status, count } of counts) {
+    totalByItem.set(item_id, (totalByItem.get(item_id) ?? 0) + count)
 
-    return {
-      itemId: item.id,
-      category: item.category,
-      name: item.name,
-      initialStock: item.initial_stock,
-      countsByProjectId,
-      available,
-      totalUnits
+    const onActiveProject = assigned_project_id !== null && activeProjectIds.has(assigned_project_id)
+
+    if (onActiveProject) {
+      const perProject = perProjectByItem.get(item_id) ?? {}
+      perProject[assigned_project_id!] = (perProject[assigned_project_id!] ?? 0) + count
+      perProjectByItem.set(item_id, perProject)
+    } else if (status !== 'Retired-Damaged') {
+      availableByItem.set(item_id, (availableByItem.get(item_id) ?? 0) + count)
     }
-  })
+  }
+
+  const rows: DashboardRow[] = items.map((item) => ({
+    itemId: item.id,
+    category: item.category,
+    name: item.name,
+    initialStock: item.initial_stock,
+    countsByProjectId: perProjectByItem.get(item.id) ?? {},
+    available: availableByItem.get(item.id) ?? 0,
+    totalUnits: totalByItem.get(item.id) ?? 0
+  }))
 
   return { projects, rows }
 }

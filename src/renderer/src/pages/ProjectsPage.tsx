@@ -242,7 +242,7 @@ export function ProjectsPage({
           assignedProjectId: toProjectId,
           auditDate: unit.auditDate,
           remarks: unit.remarks,
-          status: unit.status,
+          status: toProjectId === null ? 'Available' : 'In Use',
           photoEvidenceRef: unit.photoEvidenceRef
         })
         await window.api.transfers.create({
@@ -279,7 +279,20 @@ export function ProjectsPage({
     setSelectedAssignUnitIds(new Set())
     try {
       const units = await window.api.itemUnits.list({})
-      setAssignUnits(units.filter((u) => u.assignedProjectId === null))
+      // "Assignable" stock = units not currently deployed to an *active*
+      // project and not retired. This includes unassigned units AND units
+      // stranded on a completed/archived project (gear that came back when a
+      // site closed) — so it can be put straight onto a new project. Moving a
+      // unit that's live on another active project still goes through Transfer.
+      const activeIds = new Set((projects ?? []).filter((p) => p.status === 'active').map((p) => p.id))
+      setAssignUnits(
+        units.filter(
+          (u) =>
+            u.status !== 'Retired-Damaged' &&
+            u.assignedProjectId !== project.id &&
+            (u.assignedProjectId === null || !activeIds.has(u.assignedProjectId))
+        )
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -307,7 +320,7 @@ export function ProjectsPage({
           assignedProjectId: assignProject.id,
           auditDate: unit.auditDate,
           remarks: unit.remarks,
-          status: unit.status,
+          status: 'In Use',
           photoEvidenceRef: unit.photoEvidenceRef
         })
         await window.api.transfers.create({
@@ -747,7 +760,9 @@ export function ProjectsPage({
                           />
                         </TableCell>
                         <TableCell className="font-medium">{unit.serialId ?? '(no serial)'}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">Available</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {unit.projectName ? `Returning from ${unit.projectName}` : 'Available'}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

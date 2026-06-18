@@ -138,6 +138,13 @@ export function HandoverFlowPage({
     setError(null)
     setSuccess(null)
     try {
+      // When closing a site, any unit the operator didn't explicitly act on
+      // is treated as returned to available stock — an inventory system never
+      // leaves gear "deployed" to a project that no longer exists. Only an
+      // explicit "Retain at site" keeps a unit on the completed project.
+      const effectiveAction = (unitId: number): string =>
+        unitStates[unitId]?.action || ACTION_RETURN
+
       const createdHandover = await window.api.handovers.create({
         projectId: numericProjectId,
         handoverDate,
@@ -147,24 +154,26 @@ export function HandoverFlowPage({
         signatureRef: null,
         items: units.map((unit) => {
           const state = unitStates[unit.id]
+          const action = effectiveAction(unit.id)
           const transferProjectId =
-            state?.action === ACTION_TRANSFER && state.destProjectId !== UNASSIGNED
+            action === ACTION_TRANSFER && state?.destProjectId && state.destProjectId !== UNASSIGNED
               ? Number(state.destProjectId)
               : null
           return {
             itemUnitId: unit.id,
             condition: state?.condition || null,
-            action: state?.action || null,
+            action,
             transferProjectId
           }
         })
       })
 
       for (const unit of units) {
-        const state = unitStates[unit.id]
-        if (!state?.action) continue
+        const action = effectiveAction(unit.id)
 
-        if (state.action === ACTION_RETURN) {
+        if (action === ACTION_RETAIN) continue // explicitly left on the completed site
+
+        if (action === ACTION_RETURN) {
           await window.api.itemUnits.update(unit.id, {
             itemId: unit.itemId,
             serialId: unit.serialId,
@@ -174,7 +183,7 @@ export function HandoverFlowPage({
             status: 'Available',
             photoEvidenceRef: unit.photoEvidenceRef
           })
-        } else if (state.action === ACTION_RETIRE) {
+        } else if (action === ACTION_RETIRE) {
           await window.api.itemUnits.update(unit.id, {
             itemId: unit.itemId,
             serialId: unit.serialId,
@@ -184,15 +193,15 @@ export function HandoverFlowPage({
             status: 'Retired-Damaged',
             photoEvidenceRef: unit.photoEvidenceRef
           })
-        } else if (state.action === ACTION_TRANSFER) {
-          const destProjectId = Number(state.destProjectId)
+        } else if (action === ACTION_TRANSFER) {
+          const destProjectId = Number(unitStates[unit.id].destProjectId)
           await window.api.itemUnits.update(unit.id, {
             itemId: unit.itemId,
             serialId: unit.serialId,
             assignedProjectId: destProjectId,
             auditDate: unit.auditDate,
             remarks: unit.remarks,
-            status: unit.status,
+            status: 'In Use',
             photoEvidenceRef: unit.photoEvidenceRef
           })
           await window.api.transfers.create({
@@ -208,7 +217,6 @@ export function HandoverFlowPage({
             status: 'Completed'
           })
         }
-        // ACTION_RETAIN: unit stays on this project — no change
       }
 
       await window.api.projects.setStatus(numericProjectId, 'completed')
