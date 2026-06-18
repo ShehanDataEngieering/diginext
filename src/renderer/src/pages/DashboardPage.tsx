@@ -63,7 +63,7 @@ interface DerivedRow extends DashboardRow {
 function deriveRows(rollup: DashboardRollup): DerivedRow[] {
   return rollup.rows.map((row) => {
     const deployed = Object.values(row.countsByProjectId).reduce((sum, n) => sum + n, 0)
-    return { ...row, deployed, derivedAvailable: row.initialStock - deployed - row.retired }
+    return { ...row, deployed, derivedAvailable: row.initialStock - deployed - (row.retired ?? 0) }
   })
 }
 
