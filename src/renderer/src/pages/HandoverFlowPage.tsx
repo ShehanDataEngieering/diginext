@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Download, Upload } from 'lucide-react'
+import { HANDOVER_ACTIONS } from '@shared/ipc'
 import type { Handover, ImportSummary, ItemUnitWithDetails, Project } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const CONDITIONS = ['Good', 'Damaged', 'Needs Repair', 'Lost']
 
-const ACTION_RETURN = 'Return to stock'
-const ACTION_RETAIN = 'Retain at site'
-const ACTION_RETIRE = 'Retire / Dispose'
-const ACTION_TRANSFER = 'Transfer to another project'
-const ACTIONS = [ACTION_RETURN, ACTION_RETAIN, ACTION_RETIRE, ACTION_TRANSFER]
+// "Retain at site" is intentionally NOT offered: this flow marks the project
+// completed on submit, so keeping a unit deployed to a closed site is a
+// contradiction. Every unit must go somewhere — back to stock, retired, or
+// transferred onward.
+const ACTION_RETURN = HANDOVER_ACTIONS.return
+const ACTION_RETIRE = HANDOVER_ACTIONS.retire
+const ACTION_TRANSFER = HANDOVER_ACTIONS.transfer
+const ACTIONS = [ACTION_RETURN, ACTION_RETIRE, ACTION_TRANSFER]
 
 const UNASSIGNED = '__unassigned__'
 
@@ -138,13 +142,16 @@ export function HandoverFlowPage({
     setError(null)
     setSuccess(null)
     try {
-      // When closing a site, any unit the operator didn't explicitly act on
-      // is treated as returned to available stock — an inventory system never
-      // leaves gear "deployed" to a project that no longer exists. Only an
-      // explicit "Retain at site" keeps a unit on the completed project.
+      // When closing a site, any unit the operator didn't explicitly act on is
+      // treated as returned to available stock — an inventory system never
+      // leaves gear "deployed" to a project that no longer exists.
       const effectiveAction = (unitId: number): string =>
         unitStates[unitId]?.action || ACTION_RETURN
 
+      // All consequences (unit moves, transfer log, marking the project
+      // completed) are applied atomically inside handovers.create — see the
+      // repository. The renderer only describes intent; it no longer mutates
+      // units one-by-one, so a mid-way failure can't strand gear.
       const createdHandover = await window.api.handovers.create({
         projectId: numericProjectId,
         handoverDate,
@@ -167,59 +174,6 @@ export function HandoverFlowPage({
           }
         })
       })
-
-      for (const unit of units) {
-        const action = effectiveAction(unit.id)
-
-        if (action === ACTION_RETAIN) continue // explicitly left on the completed site
-
-        if (action === ACTION_RETURN) {
-          await window.api.itemUnits.update(unit.id, {
-            itemId: unit.itemId,
-            serialId: unit.serialId,
-            assignedProjectId: null,
-            auditDate: unit.auditDate,
-            remarks: unit.remarks,
-            status: 'Available',
-            photoEvidenceRef: unit.photoEvidenceRef
-          })
-        } else if (action === ACTION_RETIRE) {
-          await window.api.itemUnits.update(unit.id, {
-            itemId: unit.itemId,
-            serialId: unit.serialId,
-            assignedProjectId: null,
-            auditDate: unit.auditDate,
-            remarks: unit.remarks,
-            status: 'Retired-Damaged',
-            photoEvidenceRef: unit.photoEvidenceRef
-          })
-        } else if (action === ACTION_TRANSFER) {
-          const destProjectId = Number(unitStates[unit.id].destProjectId)
-          await window.api.itemUnits.update(unit.id, {
-            itemId: unit.itemId,
-            serialId: unit.serialId,
-            assignedProjectId: destProjectId,
-            auditDate: unit.auditDate,
-            remarks: unit.remarks,
-            status: 'In Use',
-            photoEvidenceRef: unit.photoEvidenceRef
-          })
-          await window.api.transfers.create({
-            date: handoverDate,
-            itemId: unit.itemId,
-            serialId: unit.serialId,
-            qty: 1,
-            fromProjectId: numericProjectId,
-            toProjectId: destProjectId,
-            transferredBy: handedOverBy.trim() || null,
-            authorizedBy: receivedBy.trim() || null,
-            notes: `Handover transfer (${unit.itemName})`,
-            status: 'Completed'
-          })
-        }
-      }
-
-      await window.api.projects.setStatus(numericProjectId, 'completed')
 
       setSuccess('Handover recorded and project marked as completed.')
       setCompletedHandover(createdHandover)
@@ -459,11 +413,10 @@ export function HandoverFlowPage({
                       </SelectTrigger>
                       <SelectContent>
                         {projects
-                          .filter((p) => String(p.id) !== projectId)
+                          .filter((p) => String(p.id) !== projectId && p.status === 'active')
                           .map((project) => (
                             <SelectItem key={project.id} value={String(project.id)}>
                               {project.name}
-                              {project.status === 'completed' ? ' (completed)' : ''}
                             </SelectItem>
                           ))}
                       </SelectContent>

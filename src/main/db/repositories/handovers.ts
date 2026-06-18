@@ -1,4 +1,5 @@
 import type { DatabaseAdapter } from '../adapter'
+import { HANDOVER_ACTIONS } from '../../../shared/ipc'
 import type { Handover, HandoverInput, HandoverItem } from '../../../shared/ipc'
 
 interface HandoverRow {
@@ -106,6 +107,29 @@ export async function getHandoverById(db: DatabaseAdapter, id: number): Promise<
   return toHandover(row as unknown as HandoverRow, items)
 }
 
+interface UnitSnapshotRow {
+  item_id: number
+  serial_id: string | null
+  remarks: string | null
+}
+
+// Folds a unit's recorded condition into its remarks so a non-"Good" state
+// isn't lost the moment the gear goes back into the pool — the next person to
+// assign it sees the flag on the unit itself, not only buried in the handover
+// record. "Good" (or blank) leaves remarks untouched.
+function appendCondition(remarks: string | null, condition: string | null, date: string): string | null {
+  if (!condition || condition === 'Good') return remarks
+  const note = `[${date} handover: ${condition}]`
+  return remarks ? `${remarks} ${note}` : note
+}
+
+/**
+ * Records a project close-out handover and applies every consequence in ONE
+ * transaction: the handover header + per-unit rows, each unit's follow-up
+ * mutation (return / retire / transfer), any transfer-log entries, and marking
+ * the project completed. Either the whole close-out lands or none of it does —
+ * no more half-applied handovers leaving gear stranded on a "completed" site.
+ */
 export async function createHandover(db: DatabaseAdapter, input: HandoverInput): Promise<Handover> {
   const handoverId = await db.transaction(async (tx) => {
     const result = await tx.query(
@@ -128,7 +152,57 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
          VALUES (?, ?, ?, ?, ?)`,
         [id, item.itemUnitId, item.condition, item.action, item.transferProjectId]
       )
+
+      const unit = (await tx.queryOne(
+        'SELECT item_id, serial_id, remarks FROM item_units WHERE id = ?',
+        [item.itemUnitId]
+      )) as unknown as UnitSnapshotRow | null
+      if (!unit) throw new Error(`Item unit ${item.itemUnitId} not found during handover`)
+
+      const remarks = appendCondition(unit.remarks, item.condition, input.handoverDate)
+
+      if (item.action === HANDOVER_ACTIONS.return) {
+        await tx.query(
+          `UPDATE item_units SET assigned_project_id = NULL, status = 'Available', remarks = ? WHERE id = ?`,
+          [remarks, item.itemUnitId]
+        )
+      } else if (item.action === HANDOVER_ACTIONS.retire) {
+        await tx.query(
+          `UPDATE item_units SET assigned_project_id = NULL, status = 'Retired-Damaged', remarks = ? WHERE id = ?`,
+          [remarks, item.itemUnitId]
+        )
+      } else if (item.action === HANDOVER_ACTIONS.transfer) {
+        if (!item.transferProjectId) {
+          throw new Error(`Transfer action for unit ${item.itemUnitId} is missing a destination project`)
+        }
+        await tx.query(
+          `UPDATE item_units SET assigned_project_id = ?, status = 'In Use', remarks = ? WHERE id = ?`,
+          [item.transferProjectId, remarks, item.itemUnitId]
+        )
+        await tx.query(
+          `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            input.handoverDate,
+            unit.item_id,
+            unit.serial_id,
+            1,
+            input.projectId,
+            item.transferProjectId,
+            input.handedOverBy,
+            input.receivedBy,
+            'Handover transfer',
+            'Completed'
+          ]
+        )
+      } else {
+        throw new Error(`Unknown handover action "${item.action}" for unit ${item.itemUnitId}`)
+      }
     }
+
+    // The whole point of the close-out: the site is done. Marked inside the same
+    // transaction so a unit can never be left deployed to a completed project.
+    await tx.query(`UPDATE projects SET status = 'completed' WHERE id = ?`, [input.projectId])
 
     return id
   })

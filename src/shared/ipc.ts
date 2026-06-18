@@ -224,6 +224,19 @@ export interface ImportDetail {
   notes?: string
 }
 
+// Per-unit follow-up action chosen during a project close-out handover. These
+// string values are persisted in handover_items.action AND drive the unit
+// mutations applied atomically inside createHandover — so both the renderer
+// (which builds the dropdown) and the repository (which acts on them) MUST use
+// these exact constants. Don't hardcode the strings on either side.
+export const HANDOVER_ACTIONS = {
+  return: 'Return to stock',
+  retire: 'Retire / Dispose',
+  transfer: 'Transfer to another project'
+} as const
+
+export type HandoverAction = (typeof HANDOVER_ACTIONS)[keyof typeof HANDOVER_ACTIONS]
+
 export interface HandoverItem {
   id: number
   handoverId: number
