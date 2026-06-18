@@ -262,11 +262,13 @@ export function ItemUnitsPage({
           <SelectContent>
             <SelectItem value={ALL}>All projects</SelectItem>
             <SelectItem value={UNASSIGNED}>Unassigned (Available)</SelectItem>
-            {projects.map((project) => (
-              <SelectItem key={project.id} value={String(project.id)}>
-                {project.name}
-              </SelectItem>
-            ))}
+            {projects
+              .filter((p) => p.status === 'active')
+              .map((project) => (
+                <SelectItem key={project.id} value={String(project.id)}>
+                  {project.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
         <div className="relative w-56">
@@ -414,18 +416,10 @@ export function ItemUnitsPage({
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Unassigned (Available)</SelectItem>
                   {projects
-                    // Only active sites are valid assignment targets, but keep
-                    // the unit's *current* project visible even if it's been
-                    // completed, so editing an existing unit doesn't silently
-                    // drop a value the user didn't touch.
-                    .filter(
-                      (project) =>
-                        project.status === 'active' || String(project.id) === form.assignedProjectId
-                    )
+                    .filter((p) => p.status === 'active')
                     .map((project) => (
                       <SelectItem key={project.id} value={String(project.id)}>
                         {project.name}
-                        {project.status === 'completed' ? ' (completed)' : ''}
                       </SelectItem>
                     ))}
                 </SelectContent>

@@ -82,18 +82,6 @@ export function TransferLogPage(): React.JSX.Element {
                 {p.name}
               </SelectItem>
             ))}
-            {projects.some((p) => p.status === 'completed') && (
-              <>
-                <div className="px-2 py-1 text-[11px] font-medium text-[#AEAEB2] uppercase tracking-wide">
-                  Completed
-                </div>
-                {projects.filter((p) => p.status === 'completed').map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </>
-            )}
           </SelectContent>
         </Select>
       </div>

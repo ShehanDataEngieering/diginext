@@ -3,7 +3,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { IPC_CHANNELS, type CreateUserInput } from '../shared/ipc'
-import { verifySession, isAdmin } from './auth/verifySession'
+import { verifySession } from './auth/verifySession'
 import { listUsers, createUser, deleteUser } from './auth/userManagement'
 import { closeDb, initDb } from './db/connection'
 import { maybeSeedFromMasterInventory } from './db/maybeSeed'
@@ -62,26 +62,21 @@ app.whenReady().then(async () => {
 
   try {
     ipcMain.handle(IPC_CHANNELS.authVerifySession, (_event, token: string) => verifySession(token))
-    ipcMain.handle(IPC_CHANNELS.authIsAdmin, (_event, token: string) => isAdmin(token))
 
-    // User management is admin-only and enforced HERE in the main process — the
-    // renderer passing the right channel name isn't enough; every call must
-    // carry the caller's access token, which we re-verify against ADMIN_EMAILS
-    // before touching the Supabase Admin API. A non-admin (or a forged renderer
-    // call) is rejected regardless of what the UI shows.
-    const requireAdmin = async (token: string): Promise<void> => {
-      if (!(await isAdmin(token))) throw new Error('Not authorized — admin access required.')
+    //
+    const requireSession = async (token: string): Promise<void> => {
+      if (!(await verifySession(token))) throw new Error('Not authorized — valid session required.')
     }
     ipcMain.handle(IPC_CHANNELS.usersList, async (_event, token: string) => {
-      await requireAdmin(token)
+      await requireSession(token)
       return listUsers()
     })
     ipcMain.handle(IPC_CHANNELS.usersCreate, async (_event, token: string, input: CreateUserInput) => {
-      await requireAdmin(token)
+      await requireSession(token)
       return createUser(input.email, input.password)
     })
     ipcMain.handle(IPC_CHANNELS.usersDelete, async (_event, token: string, id: string) => {
-      await requireAdmin(token)
+      await requireSession(token)
       return deleteUser(id)
     })
 

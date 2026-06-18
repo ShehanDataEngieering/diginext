@@ -27,7 +27,6 @@ import type {
 interface Api {
   auth: {
     verifySession: (token: string) => Promise<boolean>
-    isAdmin: (token: string) => Promise<boolean>
   }
   users: {
     list: (token: string) => Promise<AppUser[]>

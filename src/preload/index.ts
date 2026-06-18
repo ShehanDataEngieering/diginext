@@ -30,17 +30,9 @@ import {
 // export/import) — keeps the renderer free of direct Node/Electron access.
 const api = {
   auth: {
-    // Sends the Supabase access token to the main process for verification.
-    // Returns true only if the main process independently confirms the
-    // session is valid — the renderer's own auth state is not trusted.
     verifySession: (token: string): Promise<boolean> =>
-      ipcRenderer.invoke(IPC_CHANNELS.authVerifySession, token),
-    // Whether the signed-in user (by access token) may manage users.
-    isAdmin: (token: string): Promise<boolean> =>
-      ipcRenderer.invoke(IPC_CHANNELS.authIsAdmin, token)
+      ipcRenderer.invoke(IPC_CHANNELS.authVerifySession, token)
   },
-  // Admin-only user management — every call carries the caller's access token,
-  // which the main process re-verifies against ADMIN_EMAILS.
   users: {
     list: (token: string): Promise<AppUser[]> => ipcRenderer.invoke(IPC_CHANNELS.usersList, token),
     create: (token: string, input: CreateUserInput): Promise<AppUser> =>

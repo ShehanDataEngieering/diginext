@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { Trash2, UserPlus, Users } from 'lucide-react'
 import type { AppUser } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -144,11 +144,6 @@ export function UserManagementSection({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 text-sm font-medium text-[#1D1D1F]">
                       <span className="truncate">{user.email}</span>
-                      {user.isAdmin && (
-                        <span className="inline-flex items-center gap-1 rounded-sm bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                          <ShieldCheck size={11} strokeWidth={1.5} /> Admin
-                        </span>
-                      )}
                       {isSelf && <span className="text-[11px] text-[#AEAEB2]">(you)</span>}
                     </div>
                     <div className="text-xs text-[#6E6E73]">
@@ -157,9 +152,7 @@ export function UserManagementSection({
                         : 'Never signed in'}
                     </div>
                   </div>
-                  {/* Admins can't be deleted from the UI — demote via ADMIN_EMAILS
-                      first. Prevents an admin from locking themselves out. */}
-                  {!user.isAdmin && (
+                  {!isSelf && (
                     <Button
                       variant="ghost"
                       size="icon"

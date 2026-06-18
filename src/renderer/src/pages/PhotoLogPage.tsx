@@ -294,11 +294,13 @@ export function PhotoLogPage(): React.JSX.Element {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL_PROJECTS}>No project</SelectItem>
-                  {allProjects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
+                  {allProjects
+                    .filter((p) => p.status === 'active')
+                    .map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
