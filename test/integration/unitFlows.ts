@@ -13,6 +13,8 @@
  * Run: npx tsx test/integration/unitFlows.ts   (from the project root)
  */
 import 'dotenv/config'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { PostgresAdapter } from '../../src/main/db/postgresAdapter'
 import { applySchema } from '../../src/main/db/schema'
 import { createItem, deleteItem } from '../../src/main/db/repositories/items'
@@ -25,6 +27,7 @@ import {
 } from '../../src/main/db/repositories/itemUnits'
 import { createHandover } from '../../src/main/db/repositories/handovers'
 import { getDashboardRollup } from '../../src/main/db/repositories/dashboard'
+import { importAndReconcile } from '../../src/main/excel/importAndReconcile'
 import { HANDOVER_ACTIONS, type ItemUnitInput } from '../../src/shared/ipc'
 
 const TEST_SCHEMA = 'diginext_test'
@@ -345,6 +348,62 @@ async function main(): Promise<void> {
     const lgRow = lgRollup.rows.find((r) => r.itemId === lgItem.id)!
     eq('legacy unit still assigned to completed project', (await getItemUnitById(db, lgUnit.id))?.assignedProjectId, lgProj.id)
     eq('rollup heals legacy stranded unit to available', lgRow.available, 1)
+
+    // =======================================================================
+    console.log('\nExcel import — reconcile a real sheet (status, idempotency, transfer-back)')
+    // =======================================================================
+    const fixture = join(process.cwd(), 'test', 'integration', 'Inventory - GVX 03 - Gavle.xlsx')
+    if (!existsSync(fixture)) {
+      console.log(`  \x1b[33m• skipped — fixture not found at ${fixture}\x1b[0m`)
+    } else {
+      // First import: a fresh project + its units are created from the sheet.
+      const sum1 = await importAndReconcile(db, fixture)
+      check('import returns a summary (sheet parsed)', sum1 !== null, 'parser returned null')
+      if (sum1) {
+        const pid = sum1.projectId
+        check('import added units', sum1.unitsAdded > 0, `unitsAdded=${sum1.unitsAdded}`)
+
+        // CORE of the #2 fix: every unit the import put on the project must be
+        // In Use — never left at a stale Available/other status.
+        const { rows: badStatus } = await db.query(
+          "SELECT COUNT(*)::int AS c FROM item_units WHERE assigned_project_id = ? AND status <> 'In Use'",
+          [pid]
+        )
+        eq('every imported unit on the project is In Use', Number((badStatus[0] as { c: number }).c), 0)
+
+        const countOnProject = async (): Promise<number> => {
+          const { rows } = await db.query('SELECT COUNT(*)::int AS c FROM item_units WHERE assigned_project_id = ?', [pid])
+          return Number((rows[0] as { c: number }).c)
+        }
+        const afterFirst = await countOnProject()
+
+        // Second import of the SAME sheet must be idempotent — no new units.
+        const sum2 = await importAndReconcile(db, fixture)
+        eq('re-import adds no new units (idempotent)', sum2?.unitsAdded ?? -1, 0)
+        eq('unit count on project unchanged after re-import', await countOnProject(), afterFirst)
+
+        // Transfer-back branch: move a serialised unit elsewhere, re-import, and
+        // it should come back to the sheet's project as In Use with a log entry.
+        const moved = await db.queryOne(
+          'SELECT id, serial_id FROM item_units WHERE assigned_project_id = ? AND serial_id IS NOT NULL LIMIT 1',
+          [pid]
+        )
+        if (moved) {
+          const mu = moved as { id: number; serial_id: string }
+          await moveUnits(db, { unitIds: [mu.id], toProjectId: p1.id, date: TODAY, transferredBy: null, authorizedBy: null, notes: null })
+          eq('unit moved away from sheet project', (await getItemUnitById(db, mu.id))?.assignedProjectId, p1.id)
+
+          await importAndReconcile(db, fixture)
+          const back = await getItemUnitById(db, mu.id)
+          eq('re-import transfers the unit back', back?.assignedProjectId, pid)
+          eq('transferred-back unit is In Use', back?.status, 'In Use')
+          check('transfer-back recorded in log', (await transferCount(db, mu.serial_id)) >= 2,
+            'expected at least the move + the import transfer')
+        } else {
+          console.log('  \x1b[33m• transfer-back sub-test skipped — sheet has no serialised units\x1b[0m')
+        }
+      }
+    }
   } finally {
     // Tear down the isolated schema no matter what.
     try {
