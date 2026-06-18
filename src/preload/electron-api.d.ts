@@ -32,6 +32,8 @@ interface Api {
     list: (token: string) => Promise<AppUser[]>
     create: (token: string, input: CreateUserInput) => Promise<AppUser>
     delete: (token: string, id: string) => Promise<void>
+    setPassword: (token: string, id: string, password: string) => Promise<AppUser>
+    setDisabled: (token: string, id: string, disabled: boolean) => Promise<AppUser>
   }
   db: {
     backupNow: () => Promise<BackupInfo | null>

@@ -167,9 +167,14 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
           [remarks, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.retire) {
+        // Remember which site the unit was written off at — input.projectId is
+        // the project being closed out in this handover.
         await tx.query(
-          `UPDATE item_units SET assigned_project_id = NULL, status = 'Retired-Damaged', remarks = ? WHERE id = ?`,
-          [remarks, item.itemUnitId]
+          `UPDATE item_units
+           SET assigned_project_id = NULL, status = 'Retired-Damaged',
+               retired_from_project_id = ?, remarks = ?
+           WHERE id = ?`,
+          [input.projectId, remarks, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.transfer) {
         if (!item.transferProjectId) {

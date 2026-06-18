@@ -8,6 +8,8 @@ export const IPC_CHANNELS = {
   usersList: 'users:list',
   usersCreate: 'users:create',
   usersDelete: 'users:delete',
+  usersSetPassword: 'users:set-password',
+  usersSetDisabled: 'users:set-disabled',
   dbBackupNow: 'db:backup-now',
   dbListBackups: 'db:list-backups',
   dbRestoreBackup: 'db:restore-backup',
@@ -54,14 +56,18 @@ export const IPC_CHANNELS = {
 
 // A user account managed through the Settings → User Management screen. These
 // are real Supabase Auth users; the app authorizes anyone with a valid session,
-// and admins (ADMIN_EMAILS) create/remove them. `isAdmin` reflects whether the
-// user's email is in the admin list — admins can't be deleted from the UI.
+// and any signed-in user can create / disable / remove them (the last remaining
+// account is protected from deletion). `isAdmin` reflects whether the user's
+// email is in ADMIN_EMAILS — informational only now that the gate is removed.
 export interface AppUser {
   id: string
   email: string
   createdAt: string
   lastSignInAt: string | null
   isAdmin: boolean
+  // Suspended via GoTrue ban — the account exists but cannot sign in until
+  // re-enabled. A reversible alternative to deletion.
+  disabled: boolean
 }
 
 export interface CreateUserInput {
@@ -126,6 +132,10 @@ export interface ItemUnit {
   remarks: string | null
   status: UnitStatus
   photoEvidenceRef: string | null
+  // The project a unit was deployed to when it was retired/damaged. Null unless
+  // status is 'Retired-Damaged' (and may be null for older write-offs that
+  // predate the column). Lets the loss stay traceable to a site.
+  retiredFromProjectId: number | null
 }
 
 export interface ItemUnitInput {
@@ -165,11 +175,13 @@ export interface ItemUnitWithDetails extends ItemUnit {
   itemCategory: string
   itemName: string
   projectName: string | null
+  retiredFromProjectName: string | null
 }
 
 export interface ItemUnitFilter {
   itemId?: number
   projectId?: number | null // null = filter to unassigned/available units
+  status?: UnitStatus
 }
 
 // One row of the live "Main Inventory" rollup: an item type plus how many of

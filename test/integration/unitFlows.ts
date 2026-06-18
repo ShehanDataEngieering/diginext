@@ -245,6 +245,8 @@ async function main(): Promise<void> {
 
     const rt = await getItemUnitById(db, hRetire.id)
     eq('retired unit status', rt?.status, 'Retired-Damaged')
+    eq('retired unit unassigned', rt?.assignedProjectId, null)
+    eq('retired unit records the project it was retired from', rt?.retiredFromProjectId, hp.id)
     check('damaged condition appended to remarks', (rt?.remarks ?? '').includes('Damaged'), `remarks="${rt?.remarks}"`)
 
     const xf = await getItemUnitById(db, hXfer.id)
@@ -329,7 +331,10 @@ async function main(): Promise<void> {
     eq('released unit is Available', arAfter?.status, 'Available')
     eq('release recorded in transfer log', await transferCount(db, 'AR-1'), 1)
     const arRetAfter = await getItemUnitById(db, arRetired.id)
-    eq('retired unit not released by archive (stays put)', arRetAfter?.assignedProjectId, arProj.id)
+    // A retired unit holds no live assignment; the project it was on is recorded
+    // as retired_from instead. Archive's release skips it (no transfer record).
+    eq('retired unit is unassigned', arRetAfter?.assignedProjectId, null)
+    eq('retired unit records the project it was retired from', arRetAfter?.retiredFromProjectId, arProj.id)
     eq('retired unit stays retired', arRetAfter?.status, 'Retired-Damaged')
     const arProjAfter = await db.queryOne('SELECT status FROM projects WHERE id = ?', [arProj.id])
     eq('project marked completed', (arProjAfter as { status: string }).status, 'completed')

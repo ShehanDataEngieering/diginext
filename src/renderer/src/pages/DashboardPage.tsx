@@ -157,6 +157,10 @@ export function DashboardPage({
   const unitsByItemId = useMemo(() => {
     const map = new Map<number, ItemUnitWithDetails[]>()
     for (const unit of units) {
+      // Retired/written-off units are not live inventory — they're excluded
+      // from the dashboard's counts, so hide them from the drill-down too.
+      // They remain visible (and filterable) on the Item Units page.
+      if (unit.status === 'Retired-Damaged') continue
       const list = map.get(unit.itemId)
       if (list) list.push(unit)
       else map.set(unit.itemId, [unit])

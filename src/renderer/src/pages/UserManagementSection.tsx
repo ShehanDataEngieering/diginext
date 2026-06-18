@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Trash2, UserPlus, Users } from 'lucide-react'
+import { Ban, CircleCheck, KeyRound, Trash2, UserPlus, Users } from 'lucide-react'
 import type { AppUser } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 
 /**
- * Admin-only user management. Renders only when SettingsPage has confirmed the
- * signed-in user is an admin, and every call passes the caller's access token —
- * the main process re-checks admin status, so this UI gating is convenience,
- * not the security boundary.
+ * User management. Every call passes the caller's access token, which the main
+ * process re-verifies before touching the Supabase Admin API — this UI is
+ * convenience, not the security boundary.
  */
 export function UserManagementSection({
   token,
@@ -26,6 +33,11 @@ export function UserManagementSection({
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // Reset-password dialog
+  const [pwUser, setPwUser] = useState<AppUser | null>(null)
+  const [pwValue, setPwValue] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
   async function load(): Promise<void> {
     setLoading(true)
@@ -81,6 +93,41 @@ export function UserManagementSection({
     }
   }
 
+  async function handleToggleDisabled(user: AppUser): Promise<void> {
+    const next = !user.disabled
+    const verb = next ? 'Disable' : 'Enable'
+    if (next && !confirm(`Disable ${user.email}? They will be signed out and unable to sign in until re-enabled.`)) {
+      return
+    }
+    setError(null)
+    try {
+      await window.api.users.setDisabled(token, user.id, next)
+      toast.success(`User ${next ? 'disabled' : 'enabled'}`, { description: user.email })
+      await load()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      toast.error(`Could not ${verb.toLowerCase()} user`, { description: message })
+    }
+  }
+
+  async function handleSetPassword(): Promise<void> {
+    if (!pwUser || pwValue.length < 8) return
+    setPwSaving(true)
+    try {
+      await window.api.users.setPassword(token, pwUser.id, pwValue)
+      toast.success('Password updated', { description: pwUser.email })
+      setPwUser(null)
+      setPwValue('')
+    } catch (err) {
+      toast.error('Could not update password', {
+        description: err instanceof Error ? err.message : String(err)
+      })
+    } finally {
+      setPwSaving(false)
+    }
+  }
+
   return (
     <div className="rounded-md border border-[#E5E5E5] bg-white">
       <div className="border-b border-[#E5E5E5] px-4 py-3">
@@ -89,8 +136,8 @@ export function UserManagementSection({
           User Management
         </h3>
         <p className="mt-0.5 text-xs text-[#6E6E73]">
-          Create or remove people who can sign in. New users can sign in immediately with the email
-          and password you set here.
+          Create, disable, or remove people who can sign in. New users can sign in immediately with
+          the email and password you set here.
         </p>
       </div>
 
@@ -136,6 +183,7 @@ export function UserManagementSection({
           <div className="flex flex-col gap-1.5">
             {users.map((user) => {
               const isSelf = currentEmail?.toLowerCase() === user.email.toLowerCase()
+              const isLastUser = users.length <= 1
               return (
                 <div
                   key={user.id}
@@ -143,8 +191,15 @@ export function UserManagementSection({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 text-sm font-medium text-[#1D1D1F]">
-                      <span className="truncate">{user.email}</span>
+                      <span className={`truncate ${user.disabled ? 'text-[#AEAEB2] line-through' : ''}`}>
+                        {user.email}
+                      </span>
                       {isSelf && <span className="text-[11px] text-[#AEAEB2]">(you)</span>}
+                      {user.disabled && (
+                        <span className="inline-flex items-center gap-1 rounded-sm bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+                          <Ban size={11} strokeWidth={1.5} /> Disabled
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-[#6E6E73]">
                       {user.lastSignInAt
@@ -152,23 +207,87 @@ export function UserManagementSection({
                         : 'Never signed in'}
                     </div>
                   </div>
-                  {!isSelf && (
+
+                  <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-[#6E6E73] opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:text-red-600"
-                      title={`Remove ${user.email}`}
-                      onClick={() => handleDelete(user)}
+                      className="text-[#6E6E73] hover:text-[#1D1D1F]"
+                      title={`Reset password for ${user.email}`}
+                      onClick={() => {
+                        setPwUser(user)
+                        setPwValue('')
+                      }}
                     >
-                      <Trash2 size={14} strokeWidth={1.5} />
+                      <KeyRound size={14} strokeWidth={1.5} />
                     </Button>
-                  )}
+                    {/* Disabling yourself or the only account would lock people
+                        out — guard both. */}
+                    {!isSelf && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-[#6E6E73] hover:text-amber-600"
+                        title={user.disabled ? `Enable ${user.email}` : `Disable ${user.email}`}
+                        onClick={() => handleToggleDisabled(user)}
+                      >
+                        {user.disabled ? (
+                          <CircleCheck size={14} strokeWidth={1.5} />
+                        ) : (
+                          <Ban size={14} strokeWidth={1.5} />
+                        )}
+                      </Button>
+                    )}
+                    {!isSelf && !isLastUser && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-[#6E6E73] hover:text-red-600"
+                        title={`Remove ${user.email}`}
+                        onClick={() => handleDelete(user)}
+                      >
+                        <Trash2 size={14} strokeWidth={1.5} />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* Reset-password dialog */}
+      <Dialog open={!!pwUser} onOpenChange={(open) => !open && setPwUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {pwUser?.email}. They can sign in with it immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="reset-password">New password</Label>
+            <Input
+              id="reset-password"
+              type="password"
+              value={pwValue}
+              onChange={(e) => setPwValue(e.target.value)}
+              placeholder="At least 8 characters"
+              minLength={8}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwUser(null)} disabled={pwSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSetPassword} disabled={pwSaving || pwValue.length < 8}>
+              {pwSaving ? 'Saving…' : 'Set password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

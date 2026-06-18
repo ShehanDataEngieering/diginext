@@ -18,12 +18,14 @@ interface ItemUnitRow {
   remarks: string | null
   status: UnitStatus
   photo_evidence_ref: string | null
+  retired_from_project_id: number | null
 }
 
 interface ItemUnitWithDetailsRow extends ItemUnitRow {
   item_category: string
   item_name: string
   project_name: string | null
+  retired_from_project_name: string | null
 }
 
 function toItemUnit(row: ItemUnitRow): ItemUnit {
@@ -35,7 +37,8 @@ function toItemUnit(row: ItemUnitRow): ItemUnit {
     auditDate: row.audit_date,
     remarks: row.remarks,
     status: row.status,
-    photoEvidenceRef: row.photo_evidence_ref
+    photoEvidenceRef: row.photo_evidence_ref,
+    retiredFromProjectId: row.retired_from_project_id ? Number(row.retired_from_project_id) : null
   }
 }
 
@@ -44,7 +47,8 @@ function toItemUnitWithDetails(row: ItemUnitWithDetailsRow): ItemUnitWithDetails
     ...toItemUnit(row),
     itemCategory: row.item_category,
     itemName: row.item_name,
-    projectName: row.project_name
+    projectName: row.project_name,
+    retiredFromProjectName: row.retired_from_project_name
   }
 }
 
@@ -53,10 +57,12 @@ const SELECT_WITH_DETAILS = `
     u.*,
     i.category AS item_category,
     i.name AS item_name,
-    p.name AS project_name
+    p.name AS project_name,
+    rp.name AS retired_from_project_name
   FROM item_units u
   JOIN items i ON i.id = u.item_id
   LEFT JOIN projects p ON p.id = u.assigned_project_id
+  LEFT JOIN projects rp ON rp.id = u.retired_from_project_id
 `
 
 export async function getItemUnitById(db: DatabaseAdapter, id: number): Promise<ItemUnitWithDetails | null> {
@@ -66,7 +72,7 @@ export async function getItemUnitById(db: DatabaseAdapter, id: number): Promise<
 
 export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter): Promise<ItemUnitWithDetails[]> {
   const clauses: string[] = []
-  const params: (number | null)[] = []
+  const params: (number | string | null)[] = []
 
   if (filter?.itemId !== undefined) {
     clauses.push('u.item_id = ?')
@@ -80,6 +86,10 @@ export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter
       params.push(filter.projectId)
     }
   }
+  if (filter?.status !== undefined) {
+    clauses.push('u.status = ?')
+    params.push(filter.status)
+  }
 
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''
   const { rows } = await db.query(
@@ -90,17 +100,24 @@ export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter
 }
 
 export async function createItemUnit(db: DatabaseAdapter, input: ItemUnitInput): Promise<ItemUnitWithDetails> {
+  // A retired unit holds no live assignment; the project it was on is recorded
+  // as retired_from so the write-off stays traceable to a site.
+  const retiring = input.status === 'Retired-Damaged'
+  const assignedProjectId = retiring ? null : input.assignedProjectId
+  const retiredFromProjectId = retiring ? input.assignedProjectId : null
+
   const result = await db.query(
-    `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref)
-     VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref, retired_from_project_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     [
       input.itemId,
       input.serialId,
-      input.assignedProjectId,
+      assignedProjectId,
       input.auditDate,
       input.remarks,
       input.status,
-      input.photoEvidenceRef
+      input.photoEvidenceRef,
+      retiredFromProjectId
     ]
   )
   const row = await db.queryOne(
@@ -115,19 +132,39 @@ export async function updateItemUnit(
   id: number,
   input: ItemUnitInput
 ): Promise<ItemUnitWithDetails> {
+  // When a unit is (or stays) retired, it carries no live assignment and we
+  // remember the project that caused the write-off. The source is, in order:
+  // the project on the form, the existing retired_from (so a re-save of an
+  // already-retired unit doesn't lose it), then the unit's current assignment.
+  const retiring = input.status === 'Retired-Damaged'
+  let assignedProjectId = input.assignedProjectId
+  let retiredFromProjectId: number | null = null
+  if (retiring) {
+    const existing = (await db.queryOne(
+      'SELECT assigned_project_id, retired_from_project_id FROM item_units WHERE id = ?',
+      [id]
+    )) as unknown as { assigned_project_id: number | null; retired_from_project_id: number | null } | null
+    assignedProjectId = null
+    retiredFromProjectId =
+      input.assignedProjectId ??
+      (existing?.retired_from_project_id ? Number(existing.retired_from_project_id) : null) ??
+      (existing?.assigned_project_id ? Number(existing.assigned_project_id) : null)
+  }
+
   await db.query(
     `UPDATE item_units
      SET item_id = ?, serial_id = ?, assigned_project_id = ?, audit_date = ?,
-         remarks = ?, status = ?, photo_evidence_ref = ?
+         remarks = ?, status = ?, photo_evidence_ref = ?, retired_from_project_id = ?
      WHERE id = ?`,
     [
       input.itemId,
       input.serialId,
-      input.assignedProjectId,
+      assignedProjectId,
       input.auditDate,
       input.remarks,
       input.status,
       input.photoEvidenceRef,
+      retiredFromProjectId,
       id
     ]
   )

@@ -4,7 +4,13 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { IPC_CHANNELS, type CreateUserInput } from '../shared/ipc'
 import { verifySession } from './auth/verifySession'
-import { listUsers, createUser, deleteUser } from './auth/userManagement'
+import {
+  listUsers,
+  createUser,
+  deleteUser,
+  setUserPassword,
+  setUserDisabled
+} from './auth/userManagement'
 import { closeDb, initDb } from './db/connection'
 import { maybeSeedFromMasterInventory } from './db/maybeSeed'
 import { registerDataHandlers } from './ipc/dataHandlers'
@@ -79,6 +85,20 @@ app.whenReady().then(async () => {
       await requireSession(token)
       return deleteUser(id)
     })
+    ipcMain.handle(
+      IPC_CHANNELS.usersSetPassword,
+      async (_event, token: string, id: string, password: string) => {
+        await requireSession(token)
+        return setUserPassword(id, password)
+      }
+    )
+    ipcMain.handle(
+      IPC_CHANNELS.usersSetDisabled,
+      async (_event, token: string, id: string, disabled: boolean) => {
+        await requireSession(token)
+        return setUserDisabled(id, disabled)
+      }
+    )
 
     const db = await initDb()
 

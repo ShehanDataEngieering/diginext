@@ -38,7 +38,11 @@ const api = {
     create: (token: string, input: CreateUserInput): Promise<AppUser> =>
       ipcRenderer.invoke(IPC_CHANNELS.usersCreate, token, input),
     delete: (token: string, id: string): Promise<void> =>
-      ipcRenderer.invoke(IPC_CHANNELS.usersDelete, token, id)
+      ipcRenderer.invoke(IPC_CHANNELS.usersDelete, token, id),
+    setPassword: (token: string, id: string, password: string): Promise<AppUser> =>
+      ipcRenderer.invoke(IPC_CHANNELS.usersSetPassword, token, id, password),
+    setDisabled: (token: string, id: string, disabled: boolean): Promise<AppUser> =>
+      ipcRenderer.invoke(IPC_CHANNELS.usersSetDisabled, token, id, disabled)
   },
   db: {
     // Triggers an on-demand backup (kept indefinitely, unlike the pruned

@@ -45,8 +45,18 @@ export async function applySchema(db: DatabaseAdapter): Promise<void> {
       remarks             TEXT,
       status              TEXT NOT NULL DEFAULT 'Available'
                             CHECK (status IN ('In Use', 'Available', 'Retired-Damaged')),
-      photo_evidence_ref  TEXT
+      photo_evidence_ref  TEXT,
+      retired_from_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
     )
+  `)
+
+  // Records which project a unit was deployed to when it was retired/damaged,
+  // so the loss stays traceable to a site even though the unit is unassigned
+  // once written off. Added separately for databases created before the column
+  // existed (CREATE TABLE above is a no-op for them).
+  await db.exec(`
+    ALTER TABLE item_units
+    ADD COLUMN IF NOT EXISTS retired_from_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
   `)
 
   await db.exec(`

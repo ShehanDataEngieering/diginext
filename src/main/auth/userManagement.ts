@@ -21,6 +21,15 @@ interface GoTrueUser {
   email?: string
   created_at?: string
   last_sign_in_at?: string | null
+  banned_until?: string | null
+}
+
+// A user is "disabled" when GoTrue has a ban that hasn't expired yet. Unbanning
+// (ban_duration: 'none') clears banned_until back to null.
+function isDisabled(u: GoTrueUser): boolean {
+  if (!u.banned_until) return false
+  const until = new Date(u.banned_until).getTime()
+  return Number.isFinite(until) && until > Date.now()
 }
 
 function toAppUser(u: GoTrueUser, admins: string[]): AppUser {
@@ -30,8 +39,22 @@ function toAppUser(u: GoTrueUser, admins: string[]): AppUser {
     email,
     createdAt: u.created_at ?? '',
     lastSignInAt: u.last_sign_in_at ?? null,
-    isAdmin: !!email && admins.includes(email.toLowerCase())
+    isAdmin: !!email && admins.includes(email.toLowerCase()),
+    disabled: isDisabled(u)
   }
+}
+
+// Updates a GoTrue user via the admin endpoint, returning the updated AppUser.
+async function adminUpdateUser(id: string, patch: Record<string, unknown>): Promise<AppUser> {
+  if (!id) throw new Error('User id is required.')
+  const { url, headers } = adminApi()
+  const res = await fetch(`${url}/auth/v1/admin/users/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(patch)
+  })
+  if (!res.ok) throw new Error(`Failed to update user: ${res.status} ${await res.text()}`)
+  return toAppUser((await res.json()) as GoTrueUser, adminEmails())
 }
 
 export async function listUsers(): Promise<AppUser[]> {
@@ -70,7 +93,29 @@ export async function createUser(email: string, password: string): Promise<AppUs
 
 export async function deleteUser(id: string): Promise<void> {
   if (!id) throw new Error('User id is required.')
+
+  // Lockout guard: refuse to remove the last account, which would leave nobody
+  // able to sign in or manage users. Disable instead if access must be revoked.
+  const existing = await listUsers()
+  if (existing.length <= 1) {
+    throw new Error('Cannot delete the last remaining user — at least one account must stay.')
+  }
+
   const { url, headers } = adminApi()
   const res = await fetch(`${url}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers })
   if (!res.ok) throw new Error(`Failed to delete user: ${res.status} ${await res.text()}`)
+}
+
+// Admin password reset — sets a new password for any user without needing their
+// current one. The user can sign in with it immediately.
+export async function setUserPassword(id: string, password: string): Promise<AppUser> {
+  if (!password || password.length < 8) throw new Error('Password must be at least 8 characters.')
+  return adminUpdateUser(id, { password })
+}
+
+// Suspends or restores access without destroying the account or its history.
+// A disabled user keeps existing but cannot sign in until re-enabled.
+export async function setUserDisabled(id: string, disabled: boolean): Promise<AppUser> {
+  // '876000h' ≈ 100 years (indefinite); 'none' lifts the ban.
+  return adminUpdateUser(id, { ban_duration: disabled ? '876000h' : 'none' })
 }

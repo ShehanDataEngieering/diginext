@@ -104,13 +104,15 @@ export function ItemUnitsPage({
   // Filters — match the per-item / per-project drill-down the dashboard rollup implies.
   const [itemFilter, setItemFilter] = useState(ALL)
   const [projectFilter, setProjectFilter] = useState(ALL)
+  const [statusFilter, setStatusFilter] = useState<UnitStatus | typeof ALL>(ALL)
   const [serialSearch, setSerialSearch] = useState('')
 
   async function reload(): Promise<void> {
     try {
-      const filter: { itemId?: number; projectId?: number | null; serialId?: string } = {}
+      const filter: { itemId?: number; projectId?: number | null; serialId?: string; status?: UnitStatus } = {}
       if (itemFilter !== ALL) filter.itemId = Number(itemFilter)
       if (projectFilter !== ALL) filter.projectId = projectFilter === UNASSIGNED ? null : Number(projectFilter)
+      if (statusFilter !== ALL) filter.status = statusFilter
       if (serialSearch) filter.serialId = serialSearch
       const [unitRows, itemRows, projectRows] = await Promise.all([
         window.api.itemUnits.list(filter),
@@ -128,7 +130,7 @@ export function ItemUnitsPage({
   useEffect(() => {
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemFilter, projectFilter, serialSearch])
+  }, [itemFilter, projectFilter, statusFilter, serialSearch])
 
   useEffect(() => {
     if (projectSeed) setProjectFilter(String(projectSeed.projectId))
@@ -271,6 +273,17 @@ export function ItemUnitsPage({
               ))}
           </SelectContent>
         </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as UnitStatus | typeof ALL)}>
+          <SelectTrigger className="h-7 w-40 text-[13px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value="In Use">In Use</SelectItem>
+            <SelectItem value="Available">Available</SelectItem>
+            <SelectItem value="Retired-Damaged">Retired / Damaged</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="relative w-56">
           <Search
             size={14}
@@ -321,7 +334,15 @@ export function ItemUnitsPage({
                 </td>
                 <td className="px-3 py-2 font-medium text-[#1D1D1F]">{unit.serialId ?? '—'}</td>
                 <td className="px-3 py-2 text-[#6E6E73]">
-                  {unit.projectName ?? <span className="text-[#AEAEB2]">Available</span>}
+                  {unit.status === 'Retired-Damaged' ? (
+                    unit.retiredFromProjectName ? (
+                      <span className="text-red-600">Retired from {unit.retiredFromProjectName}</span>
+                    ) : (
+                      <span className="text-[#AEAEB2]">Retired</span>
+                    )
+                  ) : (
+                    unit.projectName ?? <span className="text-[#AEAEB2]">Available</span>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <span

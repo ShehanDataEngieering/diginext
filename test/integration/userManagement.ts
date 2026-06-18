@@ -6,7 +6,13 @@
  * Run: npx tsx test/integration/userManagement.ts   (from the project root)
  */
 import 'dotenv/config'
-import { listUsers, createUser, deleteUser } from '../../src/main/auth/userManagement'
+import {
+  listUsers,
+  createUser,
+  deleteUser,
+  setUserPassword,
+  setUserDisabled
+} from '../../src/main/auth/userManagement'
 import { verifySession, isAdmin, adminEmails } from '../../src/main/auth/verifySession'
 
 let passed = 0
@@ -48,6 +54,19 @@ async function main(): Promise<void> {
 
     await expectThrow('duplicate email rejected', () => createUser(testEmail, 'temp-Password-123'))
     await expectThrow('short password rejected', () => createUser(`x-${testEmail}`, 'short'))
+
+    console.log('\nPassword reset & disable/enable (Supabase Admin API)')
+    const reset = await setUserPassword(createdId, 'new-Password-456')
+    eq('setUserPassword returns the same user', reset.id, createdId)
+    await expectThrow('short reset password rejected', () => setUserPassword(createdId!, 'short'))
+
+    const disabled = await setUserDisabled(createdId, true)
+    eq('disabled user reports disabled = true', disabled.disabled, true)
+    const stillDisabled = (await listUsers()).find((u) => u.id === createdId)
+    eq('disabled state persists in the list', stillDisabled?.disabled, true)
+
+    const enabled = await setUserDisabled(createdId, false)
+    eq('re-enabled user reports disabled = false', enabled.disabled, false)
 
     await deleteUser(createdId)
     createdId = null
