@@ -50,20 +50,23 @@ interface DerivedRow extends DashboardRow {
   // per-project columns) — distinct from `totalUnits`, which also counts
   // units parked on completed projects or retired.
   deployed: number
-  // Per the design's tooltip definition: Available = Initial stock − Deployed
-  // − Retired. This is intentionally NOT the same as DashboardRow.available
-  // (which counts physically-unassigned tracked units) — that figure answers
-  // "how many spare units exist right now"; this one answers "how does the
-  // nominal baseline compare to what's still in play", and can go negative if
-  // more has been deployed than the recorded initial stock. Retired/written-off
-  // units are removed from the baseline so they don't masquerade as spare stock.
+  // The purchased baseline (`initialStock`) net of retired/written-off units —
+  // i.e. the stock you actually still own. We display THIS rather than the raw
+  // purchase count so retired gear doesn't masquerade as stock you have. The
+  // stored initial_stock is left untouched (the edit dialog still uses the raw
+  // value); this is a display-only adjustment.
+  netInitialStock: number
+  // Available = net initial stock − deployed. Equivalent to
+  // initialStock − deployed − retired; can go negative if more has been
+  // deployed than the recorded initial stock.
   derivedAvailable: number
 }
 
 function deriveRows(rollup: DashboardRollup): DerivedRow[] {
   return rollup.rows.map((row) => {
     const deployed = Object.values(row.countsByProjectId).reduce((sum, n) => sum + n, 0)
-    return { ...row, deployed, derivedAvailable: row.initialStock - deployed - (row.retired ?? 0) }
+    const netInitialStock = row.initialStock - (row.retired ?? 0)
+    return { ...row, deployed, netInitialStock, derivedAvailable: netInitialStock - deployed }
   })
 }
 
@@ -210,7 +213,7 @@ export function DashboardPage({
   const stats = useMemo(() => {
     const totalItems = filteredRows.length
     const categoryCount = new Set(filteredRows.map((r) => r.category)).size
-    const initialStock = filteredRows.reduce((sum, r) => sum + r.initialStock, 0)
+    const initialStock = filteredRows.reduce((sum, r) => sum + r.netInitialStock, 0)
     const totalDeployed = filteredRows.reduce((sum, r) => sum + r.deployed, 0)
     const itemsWithAvailable = filteredRows.filter((r) => r.derivedAvailable > 0).length
     return { totalItems, categoryCount, initialStock, totalDeployed, itemsWithAvailable }
@@ -267,7 +270,7 @@ export function DashboardPage({
       {/* Stats row */}
       <div className="grid shrink-0 grid-cols-4 gap-3 px-4 pb-3">
         <StatCell label="Total items" value={stats.totalItems} sub={`${stats.categoryCount} categories`} />
-        <StatCell label="Initial stock" value={stats.initialStock} sub="total units" />
+        <StatCell label="Initial stock" value={stats.initialStock} sub="units owned (excl. retired)" />
         <StatCell
           label="Total deployed"
           value={stats.totalDeployed}
@@ -324,7 +327,16 @@ export function DashboardPage({
             <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
               <th className="w-[28px] px-1 py-2" />
               <th className="px-3 py-2 text-left">Item</th>
-              <th className="w-[82px] px-3 py-2 text-right">Initial stock</th>
+              <th className="w-[82px] px-3 py-2 text-right">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center justify-end gap-1">
+                      Initial stock <Info size={11} className="text-gray-400" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Units owned = purchased − retired / damaged</TooltipContent>
+                </Tooltip>
+              </th>
               {rollup.projects.map((project) => (
                 <th key={project.id} className="px-3 py-2 text-right" style={{ width: projectColumnWidth }}>
                   {project.name}
@@ -337,7 +349,10 @@ export function DashboardPage({
                       Available <Info size={11} className="text-gray-400" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>Available = Initial stock − Total Deployed − Retired</TooltipContent>
+                  <TooltipContent>
+                    Available = Initial stock − Total Deployed (Initial stock already excludes retired
+                    / damaged units)
+                  </TooltipContent>
                 </Tooltip>
               </th>
               <th className="w-[90px] px-3 py-2 text-right">Total Deployed</th>
@@ -381,7 +396,7 @@ export function DashboardPage({
                       </button>
                     </td>
                     <td className="px-3 py-2 text-sm font-medium text-[#1D1D1F]">{row.name}</td>
-                    <NumericCell value={row.initialStock} />
+                    <NumericCell value={row.netInitialStock} />
                     {rollup.projects.map((project) => (
                       <NumericCell key={project.id} value={row.countsByProjectId[project.id] ?? 0} />
                     ))}
