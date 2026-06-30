@@ -6,15 +6,22 @@ import { parseImportedSheet } from './parseImportedSheet'
 
 interface ProjectRow { id: number; name: string }
 
-// Normalize a string for fuzzy project/serial matching:
-// fold Unicode accents (ä→a, ö→o, etc.) and collapse whitespace around hyphens.
+// Normalize a string for fuzzy project/serial matching: fold Unicode accents
+// (ä→a, ö→o) and drop every non-alphanumeric character so cosmetic punctuation
+// and spacing differences don't block a match.
 function normalizeForMatch(s: string): string {
   return s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') // strip combining diacritics
-    .replace(/\s*-\s*/g, '-')        // "DN - 06" → "DN-06"
     .toLowerCase()
-    .trim()
+    .replace(/[^a-z0-9]/g, '') // drop spaces, hyphens, slashes: "DN 11" == "DN-11"
+}
+
+// Project-name variant that also drops a leading "at" — on-site sheet filenames
+// carry the preposition ("At North Copenhagen") that the canonical project name
+// ("North Copenhagen") omits.
+function normalizeProjectName(s: string): string {
+  return normalizeForMatch(s).replace(/^at/, '')
 }
 
 async function resolveOrCreateProject(
@@ -43,12 +50,16 @@ async function resolveOrCreateProject(
 
   if (byName) return { projectId: byName.id, projectName: byName.name, projectCreated: false }
 
-  // Fuzzy match: normalize both sides (strip accents, collapse spaces around hyphens).
+  // Fuzzy match: normalize both sides (strip accents, drop punctuation/spacing).
+  const allProjects = (await db.query('SELECT id, name FROM projects', [])).rows as unknown as ProjectRow[]
   const normalTarget = normalizeForMatch(markerName)
-  const allProjects = await db.query('SELECT id, name FROM projects', [])
-  const fuzzy = (allProjects.rows as unknown as ProjectRow[]).find(
-    (r) => normalizeForMatch(r.name) === normalTarget
-  )
+  let fuzzy = allProjects.find((r) => normalizeForMatch(r.name) === normalTarget)
+
+  // Fall back to ignoring a leading "At" ("At North Copenhagen" → "North Copenhagen").
+  if (!fuzzy) {
+    const projectTarget = normalizeProjectName(markerName)
+    fuzzy = allProjects.find((r) => normalizeProjectName(r.name) === projectTarget)
+  }
 
   if (fuzzy) return { projectId: fuzzy.id, projectName: fuzzy.name, projectCreated: false }
 

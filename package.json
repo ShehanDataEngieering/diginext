@@ -13,7 +13,8 @@
     "migrate:postgres": "npx tsx src/main/db/migrateToPostgres.ts",
     "test:integration": "npx tsx test/integration/unitFlows.ts",
     "test:surfaces": "npx tsx test/integration/exportPhotosAuth.ts",
-    "test:users": "npx tsx test/integration/userManagement.ts"
+    "test:users": "npx tsx test/integration/userManagement.ts",
+    "test:parse": "npx tsx test/integration/parseSheet.ts"
   },
   "author": "",
   "license": "UNLICENSED",
