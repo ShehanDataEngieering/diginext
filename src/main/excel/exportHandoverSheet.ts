@@ -108,7 +108,11 @@ function buildHandoverSheet(
   const sheet = workbook.addWorksheet('Handover Report', {
     views: [{
       state: 'frozen',
-      xSplit: 3,
+      // Freeze columns A (margin) + B (Category) + C (Item No) + D (Item Name).
+      // Item Name MUST be inside the frozen region: if it's the first scrollable
+      // column, Excel clips its left edge when scrolled, cutting item names
+      // (e.g. "Body Harness" → "dy Harness") and the project-name value below.
+      xSplit: 4,
       ySplit: COLUMN_HEADER_ROW,
       showGridLines: true
     }]

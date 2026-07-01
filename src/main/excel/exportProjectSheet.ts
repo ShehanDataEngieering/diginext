@@ -149,7 +149,11 @@ export async function buildProjectInventoryWorkbook(
   items: Item[],
   units: ItemUnitWithDetails[],
   photoLog: PhotoLogEntry[] = [],
-  existingWorkbook?: ExcelJS.Workbook
+  existingWorkbook?: ExcelJS.Workbook,
+  // When true, produces a BLANK marking template: the item list and one row per
+  // current unit are kept as slots, but Quantity / Serial / Audit / Remarks are
+  // left empty for the site lead to count and fill in. Photo sheets are skipped.
+  blank = false
 ): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook()
   const newSheetName = sheetTabName(project)
@@ -189,13 +193,15 @@ export async function buildProjectInventoryWorkbook(
   const sheet = workbook.addWorksheet(newSheetName, {
     views: [
       {
-        // Freeze the blank left-margin column (A), the Category column (B),
-        // and the Item No column (C) so they stay visible when scrolling
-        // right across the serial/photo/audit columns — and freeze all rows
-        // above the data (header block + column-header row) so the column
-        // labels stay visible when scrolling down through a long item list.
+        // Freeze the blank left-margin column (A), Category (B), Item No (C)
+        // AND Item Name (D) so item identity stays visible when scrolling right
+        // across the serial/photo/audit columns — and freeze all rows above the
+        // data (header block + column-header row) so the column labels stay
+        // visible when scrolling down. Item Name must be inside the frozen
+        // region; if it's the first scrollable column Excel clips its left edge
+        // when scrolled, cutting item names (e.g. "Body Harness" → "dy Harness").
         state: 'frozen',
-        xSplit: 3, // lock columns A (margin) + B (Category) + C (Item No)
+        xSplit: 4, // lock columns A (margin) + B (Category) + C (Item No) + D (Item Name)
         ySplit: COLUMN_HEADER_ROW, // lock everything up to & including header
         showGridLines: true
       }
@@ -215,18 +221,22 @@ export async function buildProjectInventoryWorkbook(
   writeTitleBanner(sheet)
   writeHeaderBlock(sheet, project)
   writeColumnHeaders(sheet)
-  const { categoryBands, itemSpans, lastRow } = writeItemRows(sheet, items, unitsByItemId)
+  const { categoryBands, itemSpans, lastRow } = writeItemRows(sheet, items, unitsByItemId, blank)
   applyCategoryBandStyling(sheet, categoryBands)
   applyItemSpanMerges(sheet, itemSpans)
   // Black borders on the full table — column-header row down to the last item
   // row, across all 11 data columns — matching the lined look of the reference.
   applyTableBorders(sheet, COLUMN_HEADER_ROW, lastRow)
 
-  // Add images sheet with embedded unit-evidence photos
-  await buildImagesSheet(workbook, units, project.id, sheetTabName(project))
+  // A blank marking template carries no data, so it skips the photo evidence
+  // sheets (they'd only show the current — soon to be re-verified — photos).
+  if (!blank) {
+    // Add images sheet with embedded unit-evidence photos
+    await buildImagesSheet(workbook, units, project.id, sheetTabName(project))
 
-  // Add a separate sheet with the project's toolbox photos (photo log)
-  await buildToolboxPhotosSheet(workbook, photoLog, project.id, sheetTabName(project))
+    // Add a separate sheet with the project's toolbox photos (photo log)
+    await buildToolboxPhotosSheet(workbook, photoLog, project.id, sheetTabName(project))
+  }
 
   appendMetaSheet(workbook, {
     projectId: project.id,
@@ -371,7 +381,8 @@ const ACTION_COL     = COLUMN_B + 12  // N
 function writeItemRows(
   sheet: ExcelJS.Worksheet,
   items: Item[],
-  unitsByItemId: Map<number, ItemUnitWithDetails[]>
+  unitsByItemId: Map<number, ItemUnitWithDetails[]>,
+  blank = false
 ): { categoryBands: CategoryBand[]; itemSpans: ItemSpan[]; lastRow: number } {
   const categoryBands: CategoryBand[] = []
   const itemSpans: ItemSpan[] = []
@@ -418,21 +429,20 @@ function writeItemRows(
     writeRowValues(sheet, itemRow, [
       [COLUMN_B + 1, itemNo],
       [COLUMN_B + 2, item.name],
-      // The reference templates write a literal "-" for "none of this here"
-      // rather than leaving the cell blank — matches what site leads expect
-      // to see for items they don't have (vs. "0", which would read as "we
-      // had some and used them all").
-      [QUANTITY_COL, itemUnits.length > 0 ? itemUnits.length : '-']
+      // A blank template leaves Quantity empty for the site lead to count. The
+      // filled sheet writes the unit count, or a literal "-" for "none here"
+      // (rather than blank or "0", which read as "had some, used them all").
+      [QUANTITY_COL, blank ? '' : itemUnits.length > 0 ? itemUnits.length : '-']
     ])
     itemNo += 1
     nextRow += 1
 
     for (const unit of serializedUnits) {
       writeRowValues(sheet, nextRow, [
-        [SERIAL_COL, unit.serialId ?? ''],
-        [PHOTO_COL, unit.photoEvidenceRef ? 'See images sheet' : ''],
-        [AUDIT_DATE_COL, unit.auditDate ?? ''],
-        [REMARKS_COL, unit.remarks ?? '']
+        [SERIAL_COL, blank ? '' : (unit.serialId ?? '')],
+        [PHOTO_COL, blank ? '' : unit.photoEvidenceRef ? 'See images sheet' : ''],
+        [AUDIT_DATE_COL, blank ? '' : (unit.auditDate ?? '')],
+        [REMARKS_COL, blank ? '' : (unit.remarks ?? '')]
       ])
       setDropdown(sheet, nextRow, CONDITION_COL, CONDITIONS)
       setDropdown(sheet, nextRow, ACTION_COL, ACTIONS)

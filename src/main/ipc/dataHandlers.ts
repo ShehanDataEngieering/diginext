@@ -119,7 +119,7 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
   ipcMain.handle(
     IPC_CHANNELS.excelExportProject,
-    async (_event, projectId: number): Promise<ExportProjectResult> => {
+    async (_event, projectId: number, blank = false): Promise<ExportProjectResult> => {
       const project = await getProjectById(db, projectId)
       if (!project) throw new Error(`Project ${projectId} not found`)
 
@@ -129,30 +129,45 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
       const dir = exportDirectory()
       mkdirSync(dir, { recursive: true })
-      const filePath = join(dir, exportFileName(project))
 
-      // Read existing workbook if file exists (to append new dated sheet)
-      let existingWorkbook: ExcelJS.Workbook | undefined
-      if (existsSync(filePath)) {
-        existingWorkbook = new ExcelJS.Workbook()
-        await existingWorkbook.xlsx.readFile(filePath)
+      // The filled sheet appends a dated snapshot to a stable per-project file;
+      // the blank marking template is a standalone one-off with its own name.
+      const baseName = blank
+        ? exportFileName(project).replace(/\.xlsx$/, ' - blank template.xlsx')
+        : exportFileName(project)
+
+      // Writes the workbook to `target`. When appendToExisting is set and the
+      // file is already there, it's read back first so re-exports accumulate a
+      // new dated sheet in the same workbook (filled sheet only).
+      const writeExport = async (target: string, appendToExisting: boolean): Promise<void> => {
+        let existingWorkbook: ExcelJS.Workbook | undefined
+        if (appendToExisting && existsSync(target)) {
+          existingWorkbook = new ExcelJS.Workbook()
+          await existingWorkbook.xlsx.readFile(target)
+        }
+        const workbook = await buildProjectInventoryWorkbook(project, items, units, photoLog, existingWorkbook, blank)
+        await workbook.xlsx.writeFile(target)
       }
 
-      const workbook = await buildProjectInventoryWorkbook(
-        project,
-        items,
-        units,
-        photoLog,
-        existingWorkbook
-      )
-      await workbook.xlsx.writeFile(filePath)
-
-      return { filePath }
+      const filePath = join(dir, baseName)
+      try {
+        await writeExport(filePath, !blank)
+        return { filePath }
+      } catch (err) {
+        // The standard file is open in Excel → Windows locks it (EBUSY), so we
+        // can neither read it to append nor overwrite it. Write a fresh
+        // timestamped copy instead so the export still succeeds.
+        if ((err as NodeJS.ErrnoException).code !== 'EBUSY') throw err
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
+        const altPath = join(dir, baseName.replace(/\.xlsx$/, ` (${stamp}).xlsx`))
+        await writeExport(altPath, false)
+        return { filePath: altPath }
+      }
     }
   )
 
-  ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string) => {
-    return importAndReconcile(db, filePath)
+  ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string, expectedProjectId?: number) => {
+    return importAndReconcile(db, filePath, expectedProjectId)
   })
 
   ipcMain.handle(
@@ -179,12 +194,20 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
 
       const dir = exportDirectory()
       mkdirSync(dir, { recursive: true })
-      const filePath = join(dir, handoverExportFileName(handover))
 
       const workbook = await buildHandoverWorkbook(handover, unitPhotoMap, photoLog)
-      await workbook.xlsx.writeFile(filePath)
-
-      return { filePath }
+      const filePath = join(dir, handoverExportFileName(handover))
+      try {
+        await workbook.xlsx.writeFile(filePath)
+        return { filePath }
+      } catch (err) {
+        // File open in Excel → locked (EBUSY). Write a timestamped copy instead.
+        if ((err as NodeJS.ErrnoException).code !== 'EBUSY') throw err
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')
+        const altPath = join(dir, handoverExportFileName(handover).replace(/\.xlsx$/, ` (${stamp}).xlsx`))
+        await workbook.xlsx.writeFile(altPath)
+        return { filePath: altPath }
+      }
     }
   )
 

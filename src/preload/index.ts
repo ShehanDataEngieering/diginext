@@ -90,10 +90,10 @@ const api = {
     rollup: (): Promise<DashboardRollup> => ipcRenderer.invoke(IPC_CHANNELS.dashboardRollup)
   },
   excel: {
-    exportProject: (projectId: number): Promise<ExportProjectResult> =>
-      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId),
-    importProject: (filePath: string): Promise<ImportSummary | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath),
+    exportProject: (projectId: number, blank?: boolean): Promise<ExportProjectResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId, blank),
+    importProject: (filePath: string, expectedProjectId?: number): Promise<ImportSummary | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath, expectedProjectId),
     exportHandover: (handoverId: number): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportHandover, handoverId)
   },

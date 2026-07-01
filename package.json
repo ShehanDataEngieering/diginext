@@ -14,7 +14,8 @@
     "test:integration": "npx tsx test/integration/unitFlows.ts",
     "test:surfaces": "npx tsx test/integration/exportPhotosAuth.ts",
     "test:users": "npx tsx test/integration/userManagement.ts",
-    "test:parse": "npx tsx test/integration/parseSheet.ts"
+    "test:parse": "npx tsx test/integration/parseSheet.ts",
+    "test:guards": "npx tsx test/integration/importGuards.ts"
   },
   "author": "",
   "license": "UNLICENSED",

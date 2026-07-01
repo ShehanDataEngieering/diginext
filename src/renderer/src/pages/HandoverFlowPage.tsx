@@ -54,6 +54,7 @@ export function HandoverFlowPage({
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+  const [exportingSheet, setExportingSheet] = useState(false)
 
   useEffect(() => {
     window.api.projects.list().then(setProjects)
@@ -87,7 +88,10 @@ export function HandoverFlowPage({
     setError(null)
     setImportSummary(null)
     try {
-      const summary = await window.api.excel.importProject(filePath)
+      // Lock the import to the project being handed over: a sheet whose marker
+      // resolves to a different project is rejected by the main process rather
+      // than silently reconciled into the wrong project.
+      const summary = await window.api.excel.importProject(filePath, Number(projectId))
       if (!summary) {
         setError('Could not read this file — make sure it is a Diginext export or original inventory sheet.')
       } else {
@@ -117,6 +121,27 @@ export function HandoverFlowPage({
   async function handleBrowseImport(): Promise<void> {
     const filePath = await window.api.dialog.openFile()
     if (filePath) await runImport(filePath)
+  }
+
+  // Exports the selected project's inventory sheet (the units listed below) so
+  // it can be sent to the site lead to mark each item's condition, then imported
+  // back above. Same styled workbook as the Projects-page export, carrying the
+  // hidden marker that ties it to THIS project.
+  async function handleDownloadSheet(blank: boolean): Promise<void> {
+    if (!projectId) return
+    setExportingSheet(true)
+    try {
+      const result = await window.api.excel.exportProject(Number(projectId), blank)
+      toast.success(blank ? 'Blank template downloaded' : 'Filled sheet downloaded', {
+        description: result.filePath
+      })
+    } catch (err) {
+      toast.error('Could not export sheet', {
+        description: err instanceof Error ? err.message : String(err)
+      })
+    } finally {
+      setExportingSheet(false)
+    }
   }
 
   function updateUnitState(unitId: number, field: keyof UnitState, value: string): void {
@@ -301,16 +326,39 @@ export function HandoverFlowPage({
               </div>
               <div>
                 <p className="text-[#1D1D1F] text-xs font-medium">
-                  {importing ? 'Importing filled-in Excel sheet…' : 'Import filled-in inventory sheet (optional)'}
+                  {importing ? 'Importing filled-in Excel sheet…' : 'Send the sheet out, then import it back (optional)'}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  If the site lead updated the sheet, import it first to reconcile audit dates and remarks.
+                  Download a sheet for the site lead to mark each item, then import the filled-in copy
+                  to reconcile audit dates and remarks. Only this project&apos;s own sheet is accepted.
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" disabled={importing} onClick={() => void handleBrowseImport()}>
-              Browse files
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportingSheet}
+                title="Item list with quantities & serials filled in (verification sheet)"
+                onClick={() => void handleDownloadSheet(false)}
+              >
+                <Download size={14} strokeWidth={1.5} />
+                {exportingSheet ? 'Downloading…' : 'Download filled'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportingSheet}
+                title="Item list with empty Quantity/Serial columns for the site lead to fill in"
+                onClick={() => void handleDownloadSheet(true)}
+              >
+                <Download size={14} strokeWidth={1.5} />
+                Blank template
+              </Button>
+              <Button variant="outline" size="sm" disabled={importing} onClick={() => void handleBrowseImport()}>
+                <Upload size={14} strokeWidth={1.5} /> Import filled-in
+              </Button>
+            </div>
           </div>
 
           {importSummary && (

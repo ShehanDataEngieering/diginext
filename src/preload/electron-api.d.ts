@@ -63,8 +63,8 @@ interface Api {
     rollup: () => Promise<DashboardRollup>
   }
   excel: {
-    exportProject: (projectId: number) => Promise<ExportProjectResult>
-    importProject: (filePath: string) => Promise<ImportSummary | null>
+    exportProject: (projectId: number, blank?: boolean) => Promise<ExportProjectResult>
+    importProject: (filePath: string, expectedProjectId?: number) => Promise<ImportSummary | null>
     exportHandover: (handoverId: number) => Promise<ExportProjectResult>
   }
   dialog: {

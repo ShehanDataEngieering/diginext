@@ -75,12 +75,30 @@ async function resolveOrCreateItem(
   category: string,
   name: string
 ): Promise<{ itemId: number; initialStock: number; created: boolean }> {
+  // Exact case-insensitive category + name.
   const existing = await db.queryOne(
-    'SELECT id, initial_stock FROM items WHERE LOWER(category) = LOWER(?) AND LOWER(name) = LOWER(?)',
+    'SELECT id, initial_stock FROM items WHERE LOWER(TRIM(category)) = LOWER(TRIM(?)) AND LOWER(TRIM(name)) = LOWER(TRIM(?))',
     [category, name]
   ) as { id: number; initial_stock: number } | null
 
   if (existing) return { itemId: existing.id, initialStock: existing.initial_stock, created: false }
+
+  // Fall back to matching by item NAME alone. On-site sheets frequently misspell
+  // or re-case the category ("Safety related itmes" vs "Safety Related Items"),
+  // and keying strictly on category+name would spawn a duplicate item type for
+  // every such typo. Item names are effectively unique, so a single normalized-
+  // name match is the intended item — adopt it rather than duplicating it. Only
+  // create a new item when the name genuinely doesn't exist yet (or is ambiguous).
+  const nameKey = normalizeForMatch(name)
+  const all = (await db.query('SELECT id, name, initial_stock FROM items', [])).rows as unknown as {
+    id: number
+    name: string
+    initial_stock: number
+  }[]
+  const byName = all.filter((r) => normalizeForMatch(r.name) === nameKey)
+  if (byName.length === 1) {
+    return { itemId: byName[0].id, initialStock: byName[0].initial_stock, created: false }
+  }
 
   const result = await db.query(
     'INSERT INTO items (category, name, initial_stock) VALUES (?, ?, 0) RETURNING id',
@@ -100,7 +118,11 @@ async function syncInitialStock(db: DatabaseAdapter, itemId: number): Promise<vo
 
 export async function importAndReconcile(
   db: DatabaseAdapter,
-  filePath: string
+  filePath: string,
+  // When set (the handover flow), the sheet MUST reconcile into this project;
+  // a sheet that resolves to any other project is rejected. Omitted for the
+  // general Projects-page import, where the file's own marker picks the target.
+  expectedProjectId?: number
 ): Promise<ImportSummary | null> {
   const imported = parseImportedSheet(filePath)
   if (!imported) return null
@@ -127,6 +149,21 @@ export async function importAndReconcile(
     projectId = resolved.projectId
     projectName = resolved.projectName
     projectCreated = resolved.projectCreated
+
+    // Guard for the handover flow: the sheet must belong to the project being
+    // closed out. A stale/mismatched marker (e.g. a Gävle-marked sheet dropped
+    // into a North Copenhagen handover) would otherwise reconcile into — and
+    // pull units toward — the wrong project. Throwing here rolls back the whole
+    // transaction, including any project the resolver just created.
+    if (expectedProjectId != null && projectId !== expectedProjectId) {
+      const exp = (await tx.queryOne('SELECT name FROM projects WHERE id = ?', [expectedProjectId])) as
+        | { name: string }
+        | null
+      throw new Error(
+        `This sheet is for "${projectName}", but the handover is for "${exp?.name ?? 'a different project'}". ` +
+          `Import the sheet that matches the project you're handing over.`
+      )
+    }
 
     // Importing inventory onto a project means it's live again — a completed
     // site can't legitimately hold deployed units (the dashboard would heal
