@@ -477,8 +477,11 @@ export function HandoverFlowPage({
                   <Input
                     value={unitStates[unit.id]?.serialId ?? ''}
                     onChange={(e) => updateUnitState(unit.id, 'serialId', e.target.value)}
-                    className="h-7 w-32 text-[13px] font-medium"
-                    placeholder="Add serial…"
+                    className="h-7 w-36 text-[13px] font-medium placeholder:font-normal placeholder:text-[#AEAEB2] placeholder:italic"
+                    // Empty field shows "No serial (optional)" so the operator
+                    // sees this item legitimately has none and can complete the
+                    // handover as-is (or add one).
+                    placeholder="No serial (optional)"
                   />
                 </td>
                 <td className="px-3 py-2">
