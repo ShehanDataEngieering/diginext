@@ -267,11 +267,15 @@ export interface ImportSummary {
   unitsRemoved: number
   // Units that existed under a different project and were transferred here.
   transfersCreated: number
+  // Rows in the sheet the (reconcile-only) import could NOT apply and left for
+  // the operator to handle manually — no-serial items, unknown serials, or
+  // serials that belong to another project.
+  unitsSkipped: number
   details: ImportDetail[]
 }
 
 export interface ImportDetail {
-  type: 'added' | 'removed' | 'transferred'
+  type: 'added' | 'removed' | 'transferred' | 'skipped'
   itemName: string
   serialId: string | null
   fromProject?: string

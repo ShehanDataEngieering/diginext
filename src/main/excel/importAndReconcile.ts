@@ -142,6 +142,7 @@ export async function importAndReconcile(
   let unitsRemoved   = 0
   let transfersCreated = 0
   let itemsCreated   = 0
+  let unitsSkipped   = 0
 
   const touchedItemIds = new Set<number>()
 
@@ -180,12 +181,39 @@ export async function importAndReconcile(
       for (const u of allUnits) if (u.serialId) bySerial.set(normalizeForMatch(u.serialId), u)
 
       for (const block of itemBlocks) {
+        // No-serial (quantity-only) items can't be matched or safely counted —
+        // flag the block so the operator can adjust it by hand if needed.
+        const hasSerials = block.units.some((u) => u.serialId !== null)
+        if (!hasSerials && block.declaredQty > 0) {
+          unitsSkipped++
+          details.push({
+            type: 'skipped',
+            itemName: block.itemName,
+            serialId: null,
+            notes: `No serial — quantity (${block.declaredQty}) not reconciled; adjust on the Item Units page if needed`
+          })
+          continue
+        }
+
         for (const importedUnit of block.units) {
-          if (importedUnit.serialId === null) continue // no-serial items: never touched
+          if (importedUnit.serialId === null) continue
           const existing = bySerial.get(normalizeForMatch(importedUnit.serialId))
-          // Only units already ON this project are annotated; a serial we don't
-          // have, or one sitting on another project, is left completely alone.
-          if (!existing || existing.assignedProjectId !== projectId) continue
+
+          // A serial we don't have, or one on another project, is NOT moved or
+          // created — but it IS flagged so the operator can handle it manually.
+          if (!existing) {
+            unitsSkipped++
+            details.push({ type: 'skipped', itemName: block.itemName, serialId: importedUnit.serialId, notes: 'Not in the system — add it manually if needed' })
+            continue
+          }
+          if (existing.assignedProjectId !== projectId) {
+            const other = existing.assignedProjectId
+              ? ((await tx.queryOne('SELECT name FROM projects WHERE id = ?', [existing.assignedProjectId])) as { name: string } | null)?.name
+              : 'Available'
+            unitsSkipped++
+            details.push({ type: 'skipped', itemName: block.itemName, serialId: importedUnit.serialId, notes: `On another project (${other ?? 'unknown'}) — move it via the Action column if it belongs here` })
+            continue
+          }
 
           const setClauses: string[] = []
           const params: (string | number | null)[] = []
@@ -392,6 +420,7 @@ export async function importAndReconcile(
     unitsUpdated,
     unitsRemoved,
     transfersCreated,
+    unitsSkipped,
     details
   }
 }

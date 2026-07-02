@@ -140,6 +140,7 @@ async function main(): Promise<void> {
     eq('reconcile-only: 0 removed', rc?.unitsRemoved, 0)
     eq('reconcile-only: 0 new items', rc?.itemsCreated, 0)
     eq('reconcile-only: exactly 1 unit updated (the on-project one)', rc?.unitsUpdated, 1)
+    eq('reconcile-only: 3 rows flagged for manual attention', rc?.unitsSkipped, 3)
     eq('total unit count unchanged', await count(db, 'SELECT COUNT(*)::int n FROM item_units'), unitsPre)
     eq('item count unchanged', await count(db, 'SELECT COUNT(*)::int n FROM items'), itemsPre)
     const rcAlphaAfter = await getItemUnitById(db, onAlpha.id)

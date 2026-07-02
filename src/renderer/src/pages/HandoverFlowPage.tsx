@@ -407,20 +407,25 @@ export function HandoverFlowPage({
                 )}
               </h3>
               <ul className="space-y-1 text-sm text-[#1D1D1F]">
-                {importSummary.itemsCreated > 0 && (
-                  <li>🆕 New item types created: {importSummary.itemsCreated}</li>
-                )}
-                <li>➕ Units added: {importSummary.unitsAdded}</li>
                 <li>✏️ Units updated (audit / remarks): {importSummary.unitsUpdated}</li>
-                <li>🔄 Units transferred: {importSummary.transfersCreated}</li>
+                {importSummary.unitsSkipped > 0 && (
+                  <li className="font-medium text-amber-700">
+                    ⚠ Needs your attention: {importSummary.unitsSkipped} — not reconciled automatically. Review
+                    the details and add / adjust them manually.
+                  </li>
+                )}
               </ul>
               {importSummary.details.length > 0 && (
-                <details className="mt-3">
+                <details className="mt-3" open={importSummary.unitsSkipped > 0}>
                   <summary className="cursor-pointer text-xs font-medium text-[#6E6E73]">View details</summary>
                   <ul className="mt-2 space-y-1 text-xs text-[#6E6E73]">
                     {importSummary.details.map((detail, i) => (
-                      <li key={i} className={detail.type === 'removed' ? 'text-amber-700' : ''}>
-                        {detail.type === 'added' && `+ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
+                      <li
+                        key={i}
+                        className={detail.type === 'removed' || detail.type === 'skipped' ? 'text-amber-700' : ''}
+                      >
+                        {detail.type === 'added' && `✏️ ${detail.itemName} (${detail.serialId ?? 'no serial'}) — ${detail.notes ?? 'updated'}`}
+                        {detail.type === 'skipped' && `⚠ ${detail.itemName} (${detail.serialId ?? 'no serial'}) — ${detail.notes ?? 'not reconciled'}`}
                         {detail.type === 'removed' && `⚠ ${detail.itemName} (${detail.serialId ?? 'no serial'})`}
                         {detail.type === 'transferred' &&
                           `→ ${detail.itemName} (${detail.serialId ?? 'no serial'}) from ${detail.fromProject ?? 'unknown'}`}
