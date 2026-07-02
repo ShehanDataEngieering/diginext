@@ -451,8 +451,8 @@ export function HandoverFlowPage({
         </>
       )}
 
-      <div className="overflow-hidden rounded-md border border-[#E5E5E5]">
-        <table className="w-full border-collapse text-sm">
+      <div className="overflow-x-auto rounded-md border border-[#E5E5E5]">
+        <table className="min-w-full border-collapse text-sm">
           <thead className="bg-[#F5F5F7]">
             <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
               <th className="px-3 py-2 text-left">Item</th>
@@ -496,7 +496,7 @@ export function HandoverFlowPage({
                   <Input
                     value={unitStates[unit.id]?.remarks ?? ''}
                     onChange={(e) => updateUnitState(unit.id, 'remarks', e.target.value)}
-                    className="h-7 w-48 text-[13px]"
+                    className="h-7 w-40 text-[13px]"
                     placeholder="—"
                   />
                 </td>
@@ -520,7 +520,7 @@ export function HandoverFlowPage({
                     value={unitStates[unit.id]?.action ?? ''}
                     onValueChange={(v) => updateUnitState(unit.id, 'action', v)}
                   >
-                    <SelectTrigger className="h-7 w-52 text-[13px]">
+                    <SelectTrigger className="h-7 w-44 text-[13px]">
                       <SelectValue placeholder="Select…" />
                     </SelectTrigger>
                     <SelectContent>
