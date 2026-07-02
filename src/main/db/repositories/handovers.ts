@@ -111,6 +111,7 @@ interface UnitSnapshotRow {
   item_id: number
   serial_id: string | null
   remarks: string | null
+  audit_date: string | null
 }
 
 // Folds a unit's recorded condition into its remarks so a non-"Good" state
@@ -154,17 +155,23 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
       )
 
       const unit = (await tx.queryOne(
-        'SELECT item_id, serial_id, remarks FROM item_units WHERE id = ?',
+        'SELECT item_id, serial_id, remarks, audit_date FROM item_units WHERE id = ?',
         [item.itemUnitId]
       )) as unknown as UnitSnapshotRow | null
       if (!unit) throw new Error(`Item unit ${item.itemUnitId} not found during handover`)
 
-      const remarks = appendCondition(unit.remarks, item.condition, input.handoverDate)
+      // Audit date / remarks can be corrected in the handover table (e.g. after
+      // an import). Use the edited value when supplied, otherwise keep the unit's
+      // existing one. The condition flag is then appended to the resulting
+      // remarks so a non-"Good" state stays visible on the unit itself.
+      const baseRemarks = item.remarks !== undefined ? item.remarks : unit.remarks
+      const remarks = appendCondition(baseRemarks, item.condition, input.handoverDate)
+      const auditDate = item.auditDate !== undefined ? item.auditDate : unit.audit_date
 
       if (item.action === HANDOVER_ACTIONS.return) {
         await tx.query(
-          `UPDATE item_units SET assigned_project_id = NULL, status = 'Available', remarks = ? WHERE id = ?`,
-          [remarks, item.itemUnitId]
+          `UPDATE item_units SET assigned_project_id = NULL, status = 'Available', remarks = ?, audit_date = ? WHERE id = ?`,
+          [remarks, auditDate, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.retire) {
         // Remember which site the unit was written off at — input.projectId is
@@ -172,17 +179,17 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
         await tx.query(
           `UPDATE item_units
            SET assigned_project_id = NULL, status = 'Retired-Damaged',
-               retired_from_project_id = ?, remarks = ?
+               retired_from_project_id = ?, remarks = ?, audit_date = ?
            WHERE id = ?`,
-          [input.projectId, remarks, item.itemUnitId]
+          [input.projectId, remarks, auditDate, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.transfer) {
         if (!item.transferProjectId) {
           throw new Error(`Transfer action for unit ${item.itemUnitId} is missing a destination project`)
         }
         await tx.query(
-          `UPDATE item_units SET assigned_project_id = ?, status = 'In Use', remarks = ? WHERE id = ?`,
-          [item.transferProjectId, remarks, item.itemUnitId]
+          `UPDATE item_units SET assigned_project_id = ?, status = 'In Use', remarks = ?, audit_date = ? WHERE id = ?`,
+          [item.transferProjectId, remarks, auditDate, item.itemUnitId]
         )
         await tx.query(
           `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)

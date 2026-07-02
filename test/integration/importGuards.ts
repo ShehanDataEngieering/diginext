@@ -18,6 +18,7 @@ import { PostgresAdapter } from '../../src/main/db/postgresAdapter'
 import { applySchema } from '../../src/main/db/schema'
 import { createProject } from '../../src/main/db/repositories/projects'
 import { createItem } from '../../src/main/db/repositories/items'
+import { createItemUnit, getItemUnitById } from '../../src/main/db/repositories/itemUnits'
 import { importAndReconcile } from '../../src/main/excel/importAndReconcile'
 
 const TEST_SCHEMA = 'diginext_test_import'
@@ -44,6 +45,28 @@ function buildSheet(fileName: string, category: string, itemName: string, serial
   aoa.push(['', 'Category', 'Item No', 'Item Name', 'Quantity', 'Serial Number/s', 'Initial-Photo Evidence', 'Initial Audit Date', 'Remarks'])
   aoa.push(['', category, '1', itemName, String(serials.length), serials[0] ?? '', '', '', ''])
   for (let i = 1; i < serials.length; i++) aoa.push(['', '', '', '', '', serials[i], '', '', ''])
+  const ws = utils.aoa_to_sheet(aoa)
+  const wb = utils.book_new()
+  utils.book_append_sheet(wb, ws, 'in')
+  const path = join(tmpdir(), fileName)
+  writeFile(wb, path)
+  return path
+}
+
+// A sheet with per-unit audit date + remarks and an optional no-serial block.
+function buildRichSheet(
+  fileName: string,
+  serialRows: { serial: string; audit: string; remarks: string }[],
+  noSerial?: { itemName: string; qty: number }
+): string {
+  const aoa: string[][] = []
+  for (let i = 0; i < 9; i++) aoa.push([''])
+  aoa.push(['', 'Category', 'Item No', 'Item Name', 'Quantity', 'Serial Number/s', 'Initial-Photo Evidence', 'Initial Audit Date', 'Remarks'])
+  aoa.push(['', 'Safety Related Items', '1', 'Body Harness', String(serialRows.length), serialRows[0]?.serial ?? '', '', serialRows[0]?.audit ?? '', serialRows[0]?.remarks ?? ''])
+  for (let i = 1; i < serialRows.length; i++) {
+    aoa.push(['', '', '', '', '', serialRows[i].serial, '', serialRows[i].audit, serialRows[i].remarks])
+  }
+  if (noSerial) aoa.push(['', 'Safety Related Items', '2', noSerial.itemName, String(noSerial.qty), '', '', '', ''])
   const ws = utils.aoa_to_sheet(aoa)
   const wb = utils.book_new()
   utils.book_append_sheet(wb, ws, 'in')
@@ -90,7 +113,41 @@ async function main(): Promise<void> {
     eq('still exactly one item type', await count(db, 'SELECT COUNT(*)::int n FROM items'), itemsBefore)
     eq('the imported unit was added', await count(db, 'SELECT COUNT(*)::int n FROM item_units'), unitsBefore + 1)
     eq('unit landed on Alpha', await count(db, `SELECT COUNT(*)::int n FROM item_units WHERE assigned_project_id = ${alpha.id}`), 1)
-    void beta
+
+    console.log('\nGuard 3 — reconcile-only import: annotate only, never add/delete/transfer')
+    // Fixtures: a Body Harness on Alpha, one on Beta, and 3 no-serial Ear Muffs on Alpha.
+    const bhItem = (await db.queryOne(`SELECT id FROM items WHERE name = 'Body Harness'`)) as { id: number }
+    const earItem = await createItem(db, { category: 'Safety Related Items', name: 'Ear Muffs', initialStock: 3 })
+    const onAlpha = await createItemUnit(db, { itemId: bhItem.id, serialId: 'RC-ALPHA', assignedProjectId: alpha.id, auditDate: null, remarks: null, status: 'In Use', photoEvidenceRef: null })
+    await createItemUnit(db, { itemId: bhItem.id, serialId: 'RC-BETA', assignedProjectId: beta.id, auditDate: null, remarks: null, status: 'In Use', photoEvidenceRef: null })
+    for (let i = 0; i < 3; i++) await createItemUnit(db, { itemId: earItem.id, serialId: null, assignedProjectId: alpha.id, auditDate: null, remarks: null, status: 'In Use', photoEvidenceRef: null })
+
+    const unitsPre = await count(db, 'SELECT COUNT(*)::int n FROM item_units')
+    const itemsPre = await count(db, 'SELECT COUNT(*)::int n FROM items')
+    // Sheet claims: RC-ALPHA (audit+remarks), RC-BETA (on Beta), RC-NEW (unknown), and Ear Muffs qty 1 (< 3).
+    const rcFile = buildRichSheet(
+      'Inventory - Alpha (2).xlsx',
+      [
+        { serial: 'RC-ALPHA', audit: '14/04/2026', remarks: 'checked on site' },
+        { serial: 'RC-BETA', audit: '14/04/2026', remarks: 'x' },
+        { serial: 'RC-NEW', audit: '14/04/2026', remarks: 'y' }
+      ],
+      { itemName: 'Ear Muffs', qty: 1 }
+    )
+    const rc = await importAndReconcile(db, rcFile, alpha.id, true)
+    eq('reconcile-only: 0 added', rc?.unitsAdded, 0)
+    eq('reconcile-only: 0 transferred', rc?.transfersCreated, 0)
+    eq('reconcile-only: 0 removed', rc?.unitsRemoved, 0)
+    eq('reconcile-only: 0 new items', rc?.itemsCreated, 0)
+    eq('reconcile-only: exactly 1 unit updated (the on-project one)', rc?.unitsUpdated, 1)
+    eq('total unit count unchanged', await count(db, 'SELECT COUNT(*)::int n FROM item_units'), unitsPre)
+    eq('item count unchanged', await count(db, 'SELECT COUNT(*)::int n FROM items'), itemsPre)
+    const rcAlphaAfter = await getItemUnitById(db, onAlpha.id)
+    eq('on-project unit audit date updated', rcAlphaAfter?.auditDate, '2026-04-14')
+    check('on-project unit remarks updated', (rcAlphaAfter?.remarks ?? '').includes('checked on site'))
+    eq('Beta unit NOT transferred to Alpha', await count(db, `SELECT COUNT(*)::int n FROM item_units WHERE serial_id = 'RC-BETA' AND assigned_project_id = ${beta.id}`), 1)
+    eq('unknown serial NOT created', await count(db, `SELECT COUNT(*)::int n FROM item_units WHERE serial_id = 'RC-NEW'`), 0)
+    eq('no-serial Ear Muffs NOT deleted (still 3)', await count(db, `SELECT COUNT(*)::int n FROM item_units WHERE item_id = ${earItem.id}`), 3)
 
     console.log(`\n${'─'.repeat(60)}`)
     console.log(`\x1b[1m${passed} passed, ${failed} failed\x1b[0m`)

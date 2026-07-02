@@ -92,8 +92,12 @@ const api = {
   excel: {
     exportProject: (projectId: number, blank?: boolean): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportProject, projectId, blank),
-    importProject: (filePath: string, expectedProjectId?: number): Promise<ImportSummary | null> =>
-      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath, expectedProjectId),
+    importProject: (
+      filePath: string,
+      expectedProjectId?: number,
+      reconcileOnly?: boolean
+    ): Promise<ImportSummary | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.excelImportProject, filePath, expectedProjectId, reconcileOnly),
     exportHandover: (handoverId: number): Promise<ExportProjectResult> =>
       ipcRenderer.invoke(IPC_CHANNELS.excelExportHandover, handoverId)
   },

@@ -64,7 +64,11 @@ interface Api {
   }
   excel: {
     exportProject: (projectId: number, blank?: boolean) => Promise<ExportProjectResult>
-    importProject: (filePath: string, expectedProjectId?: number) => Promise<ImportSummary | null>
+    importProject: (
+      filePath: string,
+      expectedProjectId?: number,
+      reconcileOnly?: boolean
+    ) => Promise<ImportSummary | null>
     exportHandover: (handoverId: number) => Promise<ExportProjectResult>
   }
   dialog: {

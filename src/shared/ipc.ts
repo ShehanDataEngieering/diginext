@@ -310,6 +310,12 @@ export interface HandoverItemInput {
   condition: string | null
   action: string | null
   transferProjectId: number | null
+  // Optional edits to the unit's audit date / remarks made in the handover
+  // table (typically to correct what an imported sheet brought in). When
+  // provided, createHandover writes them onto the unit. `undefined` = leave
+  // the unit's existing value untouched.
+  auditDate?: string | null
+  remarks?: string | null
 }
 
 export interface Handover {

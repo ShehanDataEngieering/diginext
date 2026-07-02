@@ -166,9 +166,12 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
     }
   )
 
-  ipcMain.handle(IPC_CHANNELS.excelImportProject, (_event, filePath: string, expectedProjectId?: number) => {
-    return importAndReconcile(db, filePath, expectedProjectId)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.excelImportProject,
+    (_event, filePath: string, expectedProjectId?: number, reconcileOnly?: boolean) => {
+      return importAndReconcile(db, filePath, expectedProjectId, reconcileOnly)
+    }
+  )
 
   ipcMain.handle(
     IPC_CHANNELS.excelExportHandover,

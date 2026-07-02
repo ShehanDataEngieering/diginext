@@ -122,7 +122,14 @@ export async function importAndReconcile(
   // When set (the handover flow), the sheet MUST reconcile into this project;
   // a sheet that resolves to any other project is rejected. Omitted for the
   // general Projects-page import, where the file's own marker picks the target.
-  expectedProjectId?: number
+  expectedProjectId?: number,
+  // Reconcile-ONLY mode (the handover flow): the import may only copy audit
+  // date / remarks onto units ALREADY on this project (matched by serial). It
+  // never adds, deletes, transfers, or creates anything — so an imperfect sheet
+  // (wrong serial, wrong quantity, typo'd category, foreign serials) can't alter
+  // inventory. Structural changes stay explicit: the handover's Action column,
+  // or the Item Units / Projects pages.
+  reconcileOnly = false
 ): Promise<ImportSummary | null> {
   const imported = parseImportedSheet(filePath)
   if (!imported) return null
@@ -165,12 +172,46 @@ export async function importAndReconcile(
       )
     }
 
+    const allUnits = await listItemUnits(tx)
+
+    // ---- Reconcile-ONLY: annotate existing units, change nothing else -------
+    if (reconcileOnly) {
+      const bySerial = new Map<string, (typeof allUnits)[number]>()
+      for (const u of allUnits) if (u.serialId) bySerial.set(normalizeForMatch(u.serialId), u)
+
+      for (const block of itemBlocks) {
+        for (const importedUnit of block.units) {
+          if (importedUnit.serialId === null) continue // no-serial items: never touched
+          const existing = bySerial.get(normalizeForMatch(importedUnit.serialId))
+          // Only units already ON this project are annotated; a serial we don't
+          // have, or one sitting on another project, is left completely alone.
+          if (!existing || existing.assignedProjectId !== projectId) continue
+
+          const setClauses: string[] = []
+          const params: (string | number | null)[] = []
+          if (importedUnit.auditDate) { setClauses.push('audit_date = ?'); params.push(importedUnit.auditDate) }
+          if (importedUnit.remarks) { setClauses.push('remarks = ?'); params.push(importedUnit.remarks) }
+          if (setClauses.length === 0) continue
+
+          params.push(existing.id)
+          await tx.query(`UPDATE item_units SET ${setClauses.join(', ')} WHERE id = ?`, params)
+          unitsUpdated++
+          details.push({
+            type: 'added',
+            itemName: block.itemName,
+            serialId: importedUnit.serialId,
+            notes: `Updated: ${setClauses.map((c) => c.split(' ')[0]).join(', ')}`
+          })
+        }
+      }
+      return // skip the full add/transfer/delete reconciliation below
+    }
+
     // Importing inventory onto a project means it's live again — a completed
     // site can't legitimately hold deployed units (the dashboard would heal
     // them to "available", contradicting the assignment). Reactivate it.
     await tx.query("UPDATE projects SET status = 'active' WHERE id = ? AND status = 'completed'", [projectId])
 
-    const allUnits = await listItemUnits(tx)
     const currentProjectUnits = allUnits.filter((u) => u.assignedProjectId === projectId)
 
     for (const block of itemBlocks) {

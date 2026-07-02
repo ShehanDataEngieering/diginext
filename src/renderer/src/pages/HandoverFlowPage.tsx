@@ -25,6 +25,10 @@ interface UnitState {
   condition: string
   action: string
   destProjectId: string
+  // Audit date / remarks shown in the table — pre-filled from the unit (so an
+  // import's values are visible) and editable so the operator can correct them.
+  auditDate: string
+  remarks: string
 }
 
 function today(): string {
@@ -72,7 +76,16 @@ export function HandoverFlowPage({
       setUnitStates((prev) => {
         const next: Record<number, UnitState> = {}
         for (const unit of rows) {
-          next[unit.id] = prev[unit.id] ?? { condition: '', action: '', destProjectId: UNASSIGNED }
+          // Keep the operator's handover choices (condition/action/destination),
+          // but always refresh audit/remarks from the unit so a fresh import's
+          // values show up in the table.
+          next[unit.id] = {
+            condition: prev[unit.id]?.condition ?? '',
+            action: prev[unit.id]?.action ?? '',
+            destProjectId: prev[unit.id]?.destProjectId ?? UNASSIGNED,
+            auditDate: unit.auditDate ?? '',
+            remarks: unit.remarks ?? ''
+          }
         }
         return next
       })
@@ -88,10 +101,11 @@ export function HandoverFlowPage({
     setError(null)
     setImportSummary(null)
     try {
-      // Lock the import to the project being handed over: a sheet whose marker
-      // resolves to a different project is rejected by the main process rather
-      // than silently reconciled into the wrong project.
-      const summary = await window.api.excel.importProject(filePath, Number(projectId))
+      // Handover import: locked to the selected project (3rd-project sheets are
+      // rejected) AND reconcile-only — it may only copy audit dates / remarks
+      // onto units already here, never add / delete / transfer. Moving units is
+      // done deliberately via each unit's Action below.
+      const summary = await window.api.excel.importProject(filePath, Number(projectId), true)
       if (!summary) {
         setError('Could not read this file — make sure it is a Diginext export or original inventory sheet.')
       } else {
@@ -151,6 +165,31 @@ export function HandoverFlowPage({
     }))
   }
 
+  // Clears the in-progress handover form. `clearStatus` also drops the success
+  // banner / completed-handover reference (used by Cancel); the post-submit path
+  // keeps those so the "Download to Excel" action stays available.
+  function resetForm(clearStatus = true): void {
+    setProjectId('')
+    setUnits([])
+    setUnitStates({})
+    setHandedOverBy('')
+    setReceivedBy('')
+    setNotes('')
+    setImportSummary(null)
+    if (clearStatus) {
+      setError(null)
+      setSuccess(null)
+      setCompletedHandover(null)
+    }
+  }
+
+  function handleCancel(): void {
+    // Note: this only abandons the in-progress form. An Excel import run above
+    // has already been applied to the database and is not undone by Cancel.
+    resetForm(true)
+    toast('Handover cancelled')
+  }
+
   async function handleSubmit(): Promise<void> {
     if (!projectId) return
     const numericProjectId = Number(projectId)
@@ -195,7 +234,9 @@ export function HandoverFlowPage({
             itemUnitId: unit.id,
             condition: state?.condition || null,
             action,
-            transferProjectId
+            transferProjectId,
+            auditDate: state?.auditDate?.trim() ? state.auditDate : null,
+            remarks: state?.remarks?.trim() ? state.remarks.trim() : null
           }
         })
       })
@@ -205,13 +246,7 @@ export function HandoverFlowPage({
       toast.success('Handover recorded', {
         description: `Project marked as completed · ${units.length} unit(s) processed`
       })
-      setHandedOverBy('')
-      setReceivedBy('')
-      setNotes('')
-      setUnitStates({})
-      setUnits([])
-      setProjectId('')
-      setImportSummary(null)
+      resetForm(false)
       window.api.projects.list().then(setProjects)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -405,6 +440,8 @@ export function HandoverFlowPage({
             <tr className="text-xs font-medium tracking-wide text-[#6E6E73] uppercase">
               <th className="px-3 py-2 text-left">Item</th>
               <th className="px-3 py-2 text-left">Serial / ID</th>
+              <th className="px-3 py-2 text-left">Audit Date</th>
+              <th className="px-3 py-2 text-left">Remarks</th>
               <th className="px-3 py-2 text-left">Condition</th>
               <th className="px-3 py-2 text-left">Action</th>
               <th className="px-3 py-2 text-left">Destination</th>
@@ -420,6 +457,22 @@ export function HandoverFlowPage({
                   {unit.itemCategory} — <span className="text-[#1D1D1F]">{unit.itemName}</span>
                 </td>
                 <td className="px-3 py-2 font-medium text-[#1D1D1F]">{unit.serialId ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <Input
+                    type="date"
+                    value={unitStates[unit.id]?.auditDate ?? ''}
+                    onChange={(e) => updateUnitState(unit.id, 'auditDate', e.target.value)}
+                    className="h-7 w-36 text-[13px]"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <Input
+                    value={unitStates[unit.id]?.remarks ?? ''}
+                    onChange={(e) => updateUnitState(unit.id, 'remarks', e.target.value)}
+                    className="h-7 w-48 text-[13px]"
+                    placeholder="—"
+                  />
+                </td>
                 <td className="px-3 py-2">
                   <Select
                     value={unitStates[unit.id]?.condition ?? ''}
@@ -477,14 +530,14 @@ export function HandoverFlowPage({
             ))}
             {projectId && units.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
+                <td colSpan={7} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
                   No units currently assigned to this project.
                 </td>
               </tr>
             )}
             {!projectId && (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
+                <td colSpan={7} className="px-3 py-8 text-center text-sm text-[#6E6E73]">
                   Choose a project to list its assigned units.
                 </td>
               </tr>
@@ -493,7 +546,14 @@ export function HandoverFlowPage({
         </table>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          onClick={handleCancel}
+          disabled={saving || (!projectId && !importSummary && !success)}
+        >
+          Cancel
+        </Button>
         <Button
           onClick={handleSubmit}
           disabled={!projectId || (units.length === 0 && !importSummary) || saving}
