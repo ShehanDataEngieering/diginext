@@ -99,6 +99,17 @@ export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter
   return (rows as unknown as ItemUnitWithDetailsRow[]).map(toItemUnitWithDetails)
 }
 
+// Keeps an item's initial_stock equal to its actual number of tracked units, so
+// the dashboard's stock/available figures always reflect reality. Called after
+// any add/delete/move-between-items. (Retiring a unit doesn't change the count —
+// the dashboard nets retired out separately.)
+export async function syncInitialStock(db: DatabaseAdapter, itemId: number): Promise<void> {
+  await db.query(
+    'UPDATE items SET initial_stock = (SELECT COUNT(*) FROM item_units WHERE item_id = ?) WHERE id = ?',
+    [itemId, itemId]
+  )
+}
+
 export async function createItemUnit(db: DatabaseAdapter, input: ItemUnitInput): Promise<ItemUnitWithDetails> {
   // A retired unit holds no live assignment; the project it was on is recorded
   // as retired_from so the write-off stays traceable to a site.
@@ -120,6 +131,7 @@ export async function createItemUnit(db: DatabaseAdapter, input: ItemUnitInput):
       retiredFromProjectId
     ]
   )
+  await syncInitialStock(db, input.itemId)
   const row = await db.queryOne(
     `${SELECT_WITH_DETAILS} WHERE u.id = ?`,
     [result.lastInsertRowid]
@@ -132,6 +144,12 @@ export async function updateItemUnit(
   id: number,
   input: ItemUnitInput
 ): Promise<ItemUnitWithDetails> {
+  // Remember the current item so, if the edit reassigns the unit to a different
+  // item type, both items' stock counts can be resynced.
+  const before = (await db.queryOne('SELECT item_id FROM item_units WHERE id = ?', [id])) as
+    | { item_id: number }
+    | null
+
   // When a unit is (or stays) retired, it carries no live assignment and we
   // remember the project that caused the write-off. The source is, in order:
   // the project on the form, the existing retired_from (so a re-save of an
@@ -168,13 +186,20 @@ export async function updateItemUnit(
       id
     ]
   )
+  await syncInitialStock(db, input.itemId)
+  if (before && Number(before.item_id) !== input.itemId) await syncInitialStock(db, Number(before.item_id))
+
   const row = await db.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
   if (!row) throw new Error(`Item unit ${id} not found`)
   return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow)
 }
 
 export async function deleteItemUnit(db: DatabaseAdapter, id: number): Promise<void> {
+  const row = (await db.queryOne('SELECT item_id FROM item_units WHERE id = ?', [id])) as
+    | { item_id: number }
+    | null
   await db.query('DELETE FROM item_units WHERE id = ?', [id])
+  if (row) await syncInitialStock(db, Number(row.item_id))
 }
 
 interface MoveSnapshotRow {

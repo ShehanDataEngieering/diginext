@@ -22,6 +22,7 @@ import { createProject, setProjectStatus } from '../../src/main/db/repositories/
 import {
   createItemUnit,
   updateItemUnit,
+  deleteItemUnit,
   getItemUnitById,
   moveUnits
 } from '../../src/main/db/repositories/itemUnits'
@@ -140,6 +141,19 @@ async function main(): Promise<void> {
     )
     eq('new assigned unit is In Use', uOnP1.status, 'In Use')
     eq('new assigned unit points at project', uOnP1.assignedProjectId, p1.id)
+
+    // =======================================================================
+    console.log('\ninitial_stock tracks the actual unit count on add / delete')
+    // =======================================================================
+    const stItem = await createItem(db, { category: 'Test', name: 'Stock Tracked', initialStock: 0 })
+    const stockOf = async (): Promise<number> =>
+      Number((await db.queryOne('SELECT initial_stock FROM items WHERE id = ?', [stItem.id]) as { initial_stock: number }).initial_stock)
+    const st1 = await createItemUnit(db, unitInput({ itemId: stItem.id, serialId: 'ST-1', status: 'Available' }))
+    eq('stock = 1 after first add', await stockOf(), 1)
+    await createItemUnit(db, unitInput({ itemId: stItem.id, serialId: 'ST-2', status: 'Available' }))
+    eq('stock = 2 after second add', await stockOf(), 2)
+    await deleteItemUnit(db, st1.id)
+    eq('stock = 1 after a delete', await stockOf(), 1)
 
     // =======================================================================
     console.log('\nupdateItemUnit — edit persists assignment + status + remarks')
