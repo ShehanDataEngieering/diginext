@@ -25,8 +25,10 @@ interface UnitState {
   condition: string
   action: string
   destProjectId: string
-  // Audit date / remarks shown in the table — pre-filled from the unit (so an
-  // import's values are visible) and editable so the operator can correct them.
+  // Serial / audit date / remarks shown in the table — pre-filled from the unit
+  // (so an import's values are visible) and editable so the operator can correct
+  // them or give a no-serial unit an ID.
+  serialId: string
   auditDate: string
   remarks: string
 }
@@ -83,6 +85,7 @@ export function HandoverFlowPage({
             condition: prev[unit.id]?.condition ?? '',
             action: prev[unit.id]?.action ?? '',
             destProjectId: prev[unit.id]?.destProjectId ?? UNASSIGNED,
+            serialId: unit.serialId ?? '',
             auditDate: unit.auditDate ?? '',
             remarks: unit.remarks ?? ''
           }
@@ -235,6 +238,7 @@ export function HandoverFlowPage({
             condition: state?.condition || null,
             action,
             transferProjectId,
+            serialId: state?.serialId?.trim() ? state.serialId.trim() : null,
             auditDate: state?.auditDate?.trim() ? state.auditDate : null,
             remarks: state?.remarks?.trim() ? state.remarks.trim() : null
           }
@@ -249,7 +253,15 @@ export function HandoverFlowPage({
       resetForm(false)
       window.api.projects.list().then(setProjects)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      // Surface a failed close-out clearly — e.g. a duplicate serial entered in
+      // the table trips the unique index and aborts the whole handover. Nothing
+      // was committed (it's one transaction), so the operator can fix and retry.
+      const message = err instanceof Error ? err.message : String(err)
+      const friendly = /unique|duplicate/i.test(message)
+        ? 'Handover failed: a serial number you entered is already used by another unit. Fix the duplicate and try again.'
+        : `Handover failed: ${message}`
+      setError(friendly)
+      toast.error('Handover not completed', { description: friendly })
     } finally {
       setSaving(false)
     }
@@ -461,7 +473,14 @@ export function HandoverFlowPage({
                 <td className="px-3 py-2 text-[#6E6E73]">
                   {unit.itemCategory} — <span className="text-[#1D1D1F]">{unit.itemName}</span>
                 </td>
-                <td className="px-3 py-2 font-medium text-[#1D1D1F]">{unit.serialId ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <Input
+                    value={unitStates[unit.id]?.serialId ?? ''}
+                    onChange={(e) => updateUnitState(unit.id, 'serialId', e.target.value)}
+                    className="h-7 w-32 text-[13px] font-medium"
+                    placeholder="Add serial…"
+                  />
+                </td>
                 <td className="px-3 py-2">
                   <Input
                     type="date"

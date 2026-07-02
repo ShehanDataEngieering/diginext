@@ -228,16 +228,21 @@ async function main(): Promise<void> {
     const hReturn = await createItemUnit(db, unitInput({ itemId: item.id, serialId: 'H-RETURN', assignedProjectId: hp.id, status: 'In Use' }))
     const hRetire = await createItemUnit(db, unitInput({ itemId: item.id, serialId: 'H-RETIRE', assignedProjectId: hp.id, status: 'In Use', remarks: 'orig' }))
     const hXfer = await createItemUnit(db, unitInput({ itemId: item.id, serialId: 'H-XFER', assignedProjectId: hp.id, status: 'In Use' }))
+    // A no-serial unit that gets a serial filled in during the handover.
+    const hSerial = await createItemUnit(db, unitInput({ itemId: item.id, serialId: null, assignedProjectId: hp.id, status: 'In Use' }))
 
     const handover = await createHandover(db, {
       projectId: hp.id, handoverDate: TODAY, handedOverBy: 'lead', receivedBy: 'mgr', notes: null, signatureRef: null,
       items: [
         { itemUnitId: hReturn.id, condition: 'Good', action: HANDOVER_ACTIONS.return, transferProjectId: null },
         { itemUnitId: hRetire.id, condition: 'Damaged', action: HANDOVER_ACTIONS.retire, transferProjectId: null },
-        { itemUnitId: hXfer.id, condition: 'Good', action: HANDOVER_ACTIONS.transfer, transferProjectId: p1.id }
+        { itemUnitId: hXfer.id, condition: 'Good', action: HANDOVER_ACTIONS.transfer, transferProjectId: p1.id },
+        { itemUnitId: hSerial.id, condition: 'Good', action: HANDOVER_ACTIONS.return, transferProjectId: null, serialId: 'H-NEWSERIAL' }
       ]
     })
-    eq('handover has 3 item rows', handover.items.length, 3)
+    eq('handover has 4 item rows', handover.items.length, 4)
+    const hs = await getItemUnitById(db, hSerial.id)
+    eq('serial filled in during handover is saved', hs?.serialId, 'H-NEWSERIAL')
 
     const rb = await getItemUnitById(db, hReturn.id)
     eq('returned unit unassigned', rb?.assignedProjectId, null)

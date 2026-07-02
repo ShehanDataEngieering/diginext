@@ -167,11 +167,15 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
       const baseRemarks = item.remarks !== undefined ? item.remarks : unit.remarks
       const remarks = appendCondition(baseRemarks, item.condition, input.handoverDate)
       const auditDate = item.auditDate !== undefined ? item.auditDate : unit.audit_date
+      // Serial can be filled in during the handover (e.g. giving a no-serial
+      // unit an ID). A duplicate serial trips the unique index and aborts the
+      // whole handover — surfaced to the operator when they hit Complete.
+      const serialId = item.serialId !== undefined ? item.serialId : unit.serial_id
 
       if (item.action === HANDOVER_ACTIONS.return) {
         await tx.query(
-          `UPDATE item_units SET assigned_project_id = NULL, status = 'Available', remarks = ?, audit_date = ? WHERE id = ?`,
-          [remarks, auditDate, item.itemUnitId]
+          `UPDATE item_units SET assigned_project_id = NULL, status = 'Available', serial_id = ?, remarks = ?, audit_date = ? WHERE id = ?`,
+          [serialId, remarks, auditDate, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.retire) {
         // Remember which site the unit was written off at — input.projectId is
@@ -179,17 +183,17 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
         await tx.query(
           `UPDATE item_units
            SET assigned_project_id = NULL, status = 'Retired-Damaged',
-               retired_from_project_id = ?, remarks = ?, audit_date = ?
+               retired_from_project_id = ?, serial_id = ?, remarks = ?, audit_date = ?
            WHERE id = ?`,
-          [input.projectId, remarks, auditDate, item.itemUnitId]
+          [input.projectId, serialId, remarks, auditDate, item.itemUnitId]
         )
       } else if (item.action === HANDOVER_ACTIONS.transfer) {
         if (!item.transferProjectId) {
           throw new Error(`Transfer action for unit ${item.itemUnitId} is missing a destination project`)
         }
         await tx.query(
-          `UPDATE item_units SET assigned_project_id = ?, status = 'In Use', remarks = ?, audit_date = ? WHERE id = ?`,
-          [item.transferProjectId, remarks, auditDate, item.itemUnitId]
+          `UPDATE item_units SET assigned_project_id = ?, status = 'In Use', serial_id = ?, remarks = ?, audit_date = ? WHERE id = ?`,
+          [item.transferProjectId, serialId, remarks, auditDate, item.itemUnitId]
         )
         await tx.query(
           `INSERT INTO transfers (date, item_id, serial_id, qty, from_project_id, to_project_id, transferred_by, authorized_by, notes, status)
@@ -197,7 +201,7 @@ export async function createHandover(db: DatabaseAdapter, input: HandoverInput):
           [
             input.handoverDate,
             unit.item_id,
-            unit.serial_id,
+            serialId,
             1,
             input.projectId,
             item.transferProjectId,

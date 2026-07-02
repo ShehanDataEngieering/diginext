@@ -314,10 +314,11 @@ export interface HandoverItemInput {
   condition: string | null
   action: string | null
   transferProjectId: number | null
-  // Optional edits to the unit's audit date / remarks made in the handover
-  // table (typically to correct what an imported sheet brought in). When
-  // provided, createHandover writes them onto the unit. `undefined` = leave
-  // the unit's existing value untouched.
+  // Optional edits to the unit's serial / audit date / remarks made in the
+  // handover table (e.g. to give a no-serial unit a serial, or to correct what
+  // an imported sheet brought in). When provided, createHandover writes them
+  // onto the unit. `undefined` = leave the unit's existing value untouched.
+  serialId?: string | null
   auditDate?: string | null
   remarks?: string | null
 }
