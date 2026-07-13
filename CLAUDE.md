@@ -23,7 +23,7 @@ Desktop app for managing shared physical equipment (tools, safety gear) across m
 | App shell | Electron (via electron-vite) | Main + renderer + preload split |
 | UI framework | React 19 + TypeScript | Renderer only — no SSR |
 | Styling | Tailwind CSS v4 + shadcn/ui | Components in `src/renderer/src/components/ui/` |
-| Database | better-sqlite3-multiple-ciphers | SQLCipher-encrypted SQLite; all DB calls are main-process only |
+| Database | PostgreSQL (via `pg`) | Supabase-hosted Postgres; all DB calls are main-process only |
 | Auth | Clerk (`@clerk/clerk-react` + `@clerk/backend`) | Google sign-in; JWT verified in main process |
 | Excel write | ExcelJS | Styled workbook generation (borders, freeze panes, images) |
 | Excel read | SheetJS (`xlsx`) | Parsing imported/seed workbooks |
@@ -41,7 +41,7 @@ src/
     auth/
       verifySession.ts       # Clerk JWT verification (main-process trust boundary)
     db/
-      connection.ts          # Opens encrypted DB, runs migrations, schedules backups
+      connection.ts          # Opens Postgres connection (pg Pool), runs migrations
       backup.ts              # Auto backup-on-launch + prune; manual backup/restore
       migrations/index.ts    # All schema migrations in version order — never edit released ones
       repositories/
@@ -115,9 +115,9 @@ The renderer has **zero** direct access to Node.js, the filesystem, or the datab
 
 Post-Electron 13, `File.path` is removed. Use `window.api.photos.pathForFile(file)` which calls `webUtils.getPathForFile()` in the preload. This is the **only** legal way to get the filesystem path from a dropped `File` object.
 
-### 4. Database calls are synchronous in main, async over IPC
+### 4. Database calls are async and main-process only
 
-`better-sqlite3-multiple-ciphers` is a synchronous API. All DB calls happen in the main process inside `ipcMain.handle()` callbacks, which are `async` only because they return Promises across the IPC boundary. Don't wrap DB calls in extra async/await chains unnecessarily.
+The DB is PostgreSQL, accessed through the `pg` Pool in `PostgresAdapter` (`src/main/db/postgresAdapter.ts`). All DB calls are asynchronous and happen in the main process inside `ipcMain.handle()` callbacks, which return Promises across the IPC boundary. The adapter exposes `query`/`queryOne`/`exec`/`transaction`; SQL uses `?` placeholders that the adapter rewrites to Postgres `$1, $2, …`.
 
 ### 5. Migrations are append-only
 
@@ -125,7 +125,7 @@ Never edit or delete a migration in `src/main/db/migrations/index.ts`. Each migr
 
 ### 6. Shared types live in `src/shared/ipc.ts`
 
-Types used by both the renderer and main process go in `src/shared/ipc.ts` — nowhere else. This file must not import from `electron`, `better-sqlite3-multiple-ciphers`, or any Node-only module, because the renderer also imports it.
+Types used by both the renderer and main process go in `src/shared/ipc.ts` — nowhere else. This file must not import from `electron`, `pg`, or any Node-only module, because the renderer also imports it.
 
 ---
 
@@ -194,7 +194,7 @@ Never push directly to `master` mid-feature. Each branch should be a complete, b
 ## What is already built
 
 - Auth gate (Clerk Google sign-in, JWT verification in main process, email allowlist)
-- Encrypted SQLite database with automatic backups
+- PostgreSQL database (Supabase-hosted) with schema migrations
 - Full CRUD: Items, Projects, Item Units
 - Dashboard rollup with expandable rows showing per-unit details and photos
 - Photo attachment: drag-and-drop → managed store → thumbnail display

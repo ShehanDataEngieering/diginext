@@ -95,15 +95,27 @@ export function registerDataHandlers(db: DatabaseAdapter): void {
   ipcMain.handle(IPC_CHANNELS.itemUnitsUpdate, async (_event, id: number, input: ItemUnitInput) => {
     const previous = await getItemUnitById(db, id)
     const updated = await updateItemUnit(db, id, input)
-    if (previous && previous.photoEvidenceRef !== updated.photoEvidenceRef) {
-      await deleteManagedPhoto(previous.photoEvidenceRef)
+    // Delete the storage objects for photos that were removed from the gallery
+    // (present before, absent after). The cover is part of photoRefs, so this
+    // covers it too.
+    if (previous) {
+      const kept = new Set(updated.photoRefs)
+      for (const ref of previous.photoRefs) {
+        if (!kept.has(ref)) await deleteManagedPhoto(ref)
+      }
     }
     return updated
   })
   ipcMain.handle(IPC_CHANNELS.itemUnitsDelete, async (_event, id: number) => {
     const existing = await getItemUnitById(db, id)
     await deleteItemUnit(db, id)
-    if (existing) await deleteManagedPhoto(existing.photoEvidenceRef)
+    if (existing) {
+      // Clean up every gallery photo. Fall back to the cover for legacy units
+      // that have a photoEvidenceRef but no gallery rows.
+      const refs = new Set(existing.photoRefs)
+      if (existing.photoEvidenceRef) refs.add(existing.photoEvidenceRef)
+      for (const ref of refs) await deleteManagedPhoto(ref)
+    }
   })
   ipcMain.handle(IPC_CHANNELS.itemUnitsMove, (_event, input: MoveUnitsInput) => moveUnits(db, input))
 

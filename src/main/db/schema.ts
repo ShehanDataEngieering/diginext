@@ -59,6 +59,32 @@ export async function applySchema(db: DatabaseAdapter): Promise<void> {
     ADD COLUMN IF NOT EXISTS retired_from_project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
   `)
 
+  // A unit's photo gallery. `item_units.photo_evidence_ref` stays as the "cover"
+  // (first photo) so existing consumers — Excel export, handover sheet, the
+  // dashboard/table thumbnails — keep working unchanged; this table holds the
+  // full set, cover included, ordered by sort_order.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS item_unit_photos (
+      id           SERIAL PRIMARY KEY,
+      item_unit_id INTEGER NOT NULL REFERENCES item_units(id) ON DELETE CASCADE,
+      photo_ref    TEXT NOT NULL,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      created_at   TEXT NOT NULL DEFAULT NOW()
+    )
+  `)
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_item_unit_photos_unit ON item_unit_photos(item_unit_id)`)
+
+  // One-time backfill: seed the gallery from the pre-existing single cover photo
+  // for any unit that has a cover but no gallery rows yet. Idempotent — the NOT
+  // EXISTS guard makes re-runs a no-op.
+  await db.exec(`
+    INSERT INTO item_unit_photos (item_unit_id, photo_ref, sort_order)
+    SELECT u.id, u.photo_evidence_ref, 0
+    FROM item_units u
+    WHERE u.photo_evidence_ref IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM item_unit_photos p WHERE p.item_unit_id = u.id)
+  `)
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS transfers (
       id              SERIAL PRIMARY KEY,

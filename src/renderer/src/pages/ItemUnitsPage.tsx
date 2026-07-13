@@ -20,8 +20,8 @@ import {
 } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { PhotoDropField } from '@/components/PhotoDropField'
-import { PhotoThumbnail } from '@/components/PhotoThumbnail'
+import { PhotoGalleryField } from '@/components/PhotoGalleryField'
+import { PhotoGalleryThumbnail } from '@/components/PhotoGalleryThumbnail'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const UNASSIGNED = '__unassigned__'
@@ -45,7 +45,8 @@ interface FormState {
   // project and Available when it isn't. "Retired-Damaged" is the one manual
   // override, so the form carries it as a boolean and derives the rest.
   retired: boolean
-  photoEvidenceRef: string
+  // The unit's full photo gallery, cover (shown everywhere else) first.
+  photoRefs: string[]
 }
 
 // Single source of truth for a unit's status given the form's assignment +
@@ -63,7 +64,7 @@ function emptyForm(defaultItemId?: number): FormState {
     auditDate: '',
     remarks: '',
     retired: false,
-    photoEvidenceRef: ''
+    photoRefs: []
   }
 }
 
@@ -77,7 +78,9 @@ function toInput(form: FormState): ItemUnitInput | null {
     auditDate: form.auditDate.trim() || null,
     remarks: form.remarks.trim() || null,
     status: deriveStatus(form.assignedProjectId, form.retired),
-    photoEvidenceRef: form.photoEvidenceRef.trim() || null
+    // Cover mirrors the first gallery photo; photoRefs carries the whole set.
+    photoEvidenceRef: form.photoRefs[0] ?? null,
+    photoRefs: form.photoRefs
   }
 }
 
@@ -151,7 +154,10 @@ export function ItemUnitsPage({
       auditDate: unit.auditDate ?? '',
       remarks: unit.remarks ?? '',
       retired: unit.status === 'Retired-Damaged',
-      photoEvidenceRef: unit.photoEvidenceRef ?? ''
+      // Prefer the stored gallery; fall back to the lone cover for legacy units
+      // created before galleries existed so they load (and become a gallery on
+      // the next save).
+      photoRefs: unit.photoRefs.length > 0 ? unit.photoRefs : unit.photoEvidenceRef ? [unit.photoEvidenceRef] : []
     })
     setDialogUnit(unit)
   }
@@ -324,8 +330,14 @@ export function ItemUnitsPage({
                 }`}
               >
                 <td className="px-3 py-1.5">
-                  <PhotoThumbnail
-                    reference={unit.photoEvidenceRef}
+                  <PhotoGalleryThumbnail
+                    references={
+                      unit.photoRefs.length > 0
+                        ? unit.photoRefs
+                        : unit.photoEvidenceRef
+                          ? [unit.photoEvidenceRef]
+                          : []
+                    }
                     label={unit.serialId ?? `${unit.itemName} (unit #${unit.id})`}
                   />
                 </td>
@@ -481,11 +493,9 @@ export function ItemUnitsPage({
             </div>
             <div className="flex flex-col gap-1">
               <Label>Photo evidence</Label>
-              <PhotoDropField
-                reference={form.photoEvidenceRef.trim() || null}
-                onChange={(reference) =>
-                  setForm((f) => ({ ...f, photoEvidenceRef: reference ?? '' }))
-                }
+              <PhotoGalleryField
+                refs={form.photoRefs}
+                onChange={(refs) => setForm((f) => ({ ...f, photoRefs: refs }))}
                 label={form.serialId.trim() || 'Photo evidence'}
               />
             </div>

@@ -28,7 +28,7 @@ interface ItemUnitWithDetailsRow extends ItemUnitRow {
   retired_from_project_name: string | null
 }
 
-function toItemUnit(row: ItemUnitRow): ItemUnit {
+function toItemUnit(row: ItemUnitRow, photoRefs: string[]): ItemUnit {
   return {
     id: Number(row.id),
     itemId: Number(row.item_id),
@@ -38,17 +38,52 @@ function toItemUnit(row: ItemUnitRow): ItemUnit {
     remarks: row.remarks,
     status: row.status,
     photoEvidenceRef: row.photo_evidence_ref,
+    photoRefs,
     retiredFromProjectId: row.retired_from_project_id ? Number(row.retired_from_project_id) : null
   }
 }
 
-function toItemUnitWithDetails(row: ItemUnitWithDetailsRow): ItemUnitWithDetails {
+function toItemUnitWithDetails(row: ItemUnitWithDetailsRow, photoRefs: string[]): ItemUnitWithDetails {
   return {
-    ...toItemUnit(row),
+    ...toItemUnit(row, photoRefs),
     itemCategory: row.item_category,
     itemName: row.item_name,
     projectName: row.project_name,
     retiredFromProjectName: row.retired_from_project_name
+  }
+}
+
+// Loads the photo gallery (cover first, then by sort order) for a set of units
+// in a single query, grouped by unit id. Returns an empty map for no ids so
+// callers don't need to special-case it.
+async function loadPhotoRefs(db: DatabaseAdapter, unitIds: number[]): Promise<Map<number, string[]>> {
+  const map = new Map<number, string[]>()
+  if (unitIds.length === 0) return map
+  const placeholders = unitIds.map(() => '?').join(', ')
+  const { rows } = await db.query(
+    `SELECT item_unit_id, photo_ref FROM item_unit_photos
+     WHERE item_unit_id IN (${placeholders})
+     ORDER BY sort_order, id`,
+    unitIds
+  )
+  for (const r of rows as unknown as { item_unit_id: number; photo_ref: string }[]) {
+    const key = Number(r.item_unit_id)
+    const arr = map.get(key) ?? []
+    arr.push(r.photo_ref)
+    map.set(key, arr)
+  }
+  return map
+}
+
+// Replaces a unit's gallery with exactly `refs` (in the given order). Runs
+// inside the caller's transaction so the swap is atomic with the unit write.
+async function syncPhotoGallery(db: DatabaseAdapter, unitId: number, refs: string[]): Promise<void> {
+  await db.query('DELETE FROM item_unit_photos WHERE item_unit_id = ?', [unitId])
+  for (let i = 0; i < refs.length; i++) {
+    await db.query(
+      'INSERT INTO item_unit_photos (item_unit_id, photo_ref, sort_order) VALUES (?, ?, ?)',
+      [unitId, refs[i], i]
+    )
   }
 }
 
@@ -67,7 +102,10 @@ const SELECT_WITH_DETAILS = `
 
 export async function getItemUnitById(db: DatabaseAdapter, id: number): Promise<ItemUnitWithDetails | null> {
   const row = await db.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
-  return row ? toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow) : null
+  if (!row) return null
+  const typed = row as unknown as ItemUnitWithDetailsRow
+  const photos = await loadPhotoRefs(db, [Number(typed.id)])
+  return toItemUnitWithDetails(typed, photos.get(Number(typed.id)) ?? [])
 }
 
 export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter): Promise<ItemUnitWithDetails[]> {
@@ -96,7 +134,9 @@ export async function listItemUnits(db: DatabaseAdapter, filter?: ItemUnitFilter
     `${SELECT_WITH_DETAILS} ${where} ORDER BY i.category, i.name, u.serial_id`,
     params
   )
-  return (rows as unknown as ItemUnitWithDetailsRow[]).map(toItemUnitWithDetails)
+  const typedRows = rows as unknown as ItemUnitWithDetailsRow[]
+  const photos = await loadPhotoRefs(db, typedRows.map((r) => Number(r.id)))
+  return typedRows.map((r) => toItemUnitWithDetails(r, photos.get(Number(r.id)) ?? []))
 }
 
 // Keeps an item's initial_stock equal to its actual number of tracked units, so
@@ -111,32 +151,43 @@ export async function syncInitialStock(db: DatabaseAdapter, itemId: number): Pro
 }
 
 export async function createItemUnit(db: DatabaseAdapter, input: ItemUnitInput): Promise<ItemUnitWithDetails> {
-  // A retired unit holds no live assignment; the project it was on is recorded
-  // as retired_from so the write-off stays traceable to a site.
-  const retiring = input.status === 'Retired-Damaged'
-  const assignedProjectId = retiring ? null : input.assignedProjectId
-  const retiredFromProjectId = retiring ? input.assignedProjectId : null
+  return db.transaction(async (tx) => {
+    // A retired unit holds no live assignment; the project it was on is recorded
+    // as retired_from so the write-off stays traceable to a site.
+    const retiring = input.status === 'Retired-Damaged'
+    const assignedProjectId = retiring ? null : input.assignedProjectId
+    const retiredFromProjectId = retiring ? input.assignedProjectId : null
 
-  const result = await db.query(
-    `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref, retired_from_project_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [
-      input.itemId,
-      input.serialId,
-      assignedProjectId,
-      input.auditDate,
-      input.remarks,
-      input.status,
-      input.photoEvidenceRef,
-      retiredFromProjectId
-    ]
-  )
-  await syncInitialStock(db, input.itemId)
-  const row = await db.queryOne(
-    `${SELECT_WITH_DETAILS} WHERE u.id = ?`,
-    [result.lastInsertRowid]
-  )
-  return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow)
+    // With a gallery supplied, the cover is its first photo; otherwise fall back
+    // to the single photoEvidenceRef (non-UI callers that don't build a gallery).
+    const gallery = input.photoRefs
+    const cover = gallery !== undefined ? (gallery[0] ?? null) : input.photoEvidenceRef
+
+    const result = await tx.query(
+      `INSERT INTO item_units (item_id, serial_id, assigned_project_id, audit_date, remarks, status, photo_evidence_ref, retired_from_project_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [
+        input.itemId,
+        input.serialId,
+        assignedProjectId,
+        input.auditDate,
+        input.remarks,
+        input.status,
+        cover,
+        retiredFromProjectId
+      ]
+    )
+    const newId = Number(result.lastInsertRowid)
+    // Seed the gallery from the supplied set, or from the lone cover so an
+    // import-created unit still reads back a one-photo gallery.
+    if (gallery !== undefined) await syncPhotoGallery(tx, newId, gallery)
+    else if (cover) await syncPhotoGallery(tx, newId, [cover])
+
+    await syncInitialStock(tx, input.itemId)
+    const row = await tx.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [newId])
+    const photos = await loadPhotoRefs(tx, [newId])
+    return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow, photos.get(newId) ?? [])
+  })
 }
 
 export async function updateItemUnit(
@@ -144,54 +195,64 @@ export async function updateItemUnit(
   id: number,
   input: ItemUnitInput
 ): Promise<ItemUnitWithDetails> {
-  // Remember the current item so, if the edit reassigns the unit to a different
-  // item type, both items' stock counts can be resynced.
-  const before = (await db.queryOne('SELECT item_id FROM item_units WHERE id = ?', [id])) as
-    | { item_id: number }
-    | null
+  return db.transaction(async (tx) => {
+    // Remember the current item so, if the edit reassigns the unit to a different
+    // item type, both items' stock counts can be resynced.
+    const before = (await tx.queryOne('SELECT item_id FROM item_units WHERE id = ?', [id])) as
+      | { item_id: number }
+      | null
 
-  // When a unit is (or stays) retired, it carries no live assignment and we
-  // remember the project that caused the write-off. The source is, in order:
-  // the project on the form, the existing retired_from (so a re-save of an
-  // already-retired unit doesn't lose it), then the unit's current assignment.
-  const retiring = input.status === 'Retired-Damaged'
-  let assignedProjectId = input.assignedProjectId
-  let retiredFromProjectId: number | null = null
-  if (retiring) {
-    const existing = (await db.queryOne(
-      'SELECT assigned_project_id, retired_from_project_id FROM item_units WHERE id = ?',
-      [id]
-    )) as unknown as { assigned_project_id: number | null; retired_from_project_id: number | null } | null
-    assignedProjectId = null
-    retiredFromProjectId =
-      input.assignedProjectId ??
-      (existing?.retired_from_project_id ? Number(existing.retired_from_project_id) : null) ??
-      (existing?.assigned_project_id ? Number(existing.assigned_project_id) : null)
-  }
+    // When a unit is (or stays) retired, it carries no live assignment and we
+    // remember the project that caused the write-off. The source is, in order:
+    // the project on the form, the existing retired_from (so a re-save of an
+    // already-retired unit doesn't lose it), then the unit's current assignment.
+    const retiring = input.status === 'Retired-Damaged'
+    let assignedProjectId = input.assignedProjectId
+    let retiredFromProjectId: number | null = null
+    if (retiring) {
+      const existing = (await tx.queryOne(
+        'SELECT assigned_project_id, retired_from_project_id FROM item_units WHERE id = ?',
+        [id]
+      )) as unknown as { assigned_project_id: number | null; retired_from_project_id: number | null } | null
+      assignedProjectId = null
+      retiredFromProjectId =
+        input.assignedProjectId ??
+        (existing?.retired_from_project_id ? Number(existing.retired_from_project_id) : null) ??
+        (existing?.assigned_project_id ? Number(existing.assigned_project_id) : null)
+    }
 
-  await db.query(
-    `UPDATE item_units
-     SET item_id = ?, serial_id = ?, assigned_project_id = ?, audit_date = ?,
-         remarks = ?, status = ?, photo_evidence_ref = ?, retired_from_project_id = ?
-     WHERE id = ?`,
-    [
-      input.itemId,
-      input.serialId,
-      assignedProjectId,
-      input.auditDate,
-      input.remarks,
-      input.status,
-      input.photoEvidenceRef,
-      retiredFromProjectId,
-      id
-    ]
-  )
-  await syncInitialStock(db, input.itemId)
-  if (before && Number(before.item_id) !== input.itemId) await syncInitialStock(db, Number(before.item_id))
+    // A supplied gallery replaces the unit's photos and dictates the cover; when
+    // omitted, leave the gallery untouched and keep the given cover as-is.
+    const gallery = input.photoRefs
+    const cover = gallery !== undefined ? (gallery[0] ?? null) : input.photoEvidenceRef
 
-  const row = await db.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
-  if (!row) throw new Error(`Item unit ${id} not found`)
-  return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow)
+    await tx.query(
+      `UPDATE item_units
+       SET item_id = ?, serial_id = ?, assigned_project_id = ?, audit_date = ?,
+           remarks = ?, status = ?, photo_evidence_ref = ?, retired_from_project_id = ?
+       WHERE id = ?`,
+      [
+        input.itemId,
+        input.serialId,
+        assignedProjectId,
+        input.auditDate,
+        input.remarks,
+        input.status,
+        cover,
+        retiredFromProjectId,
+        id
+      ]
+    )
+    if (gallery !== undefined) await syncPhotoGallery(tx, id, gallery)
+
+    await syncInitialStock(tx, input.itemId)
+    if (before && Number(before.item_id) !== input.itemId) await syncInitialStock(tx, Number(before.item_id))
+
+    const row = await tx.queryOne(`${SELECT_WITH_DETAILS} WHERE u.id = ?`, [id])
+    if (!row) throw new Error(`Item unit ${id} not found`)
+    const photos = await loadPhotoRefs(tx, [id])
+    return toItemUnitWithDetails(row as unknown as ItemUnitWithDetailsRow, photos.get(id) ?? [])
+  })
 }
 
 export async function deleteItemUnit(db: DatabaseAdapter, id: number): Promise<void> {

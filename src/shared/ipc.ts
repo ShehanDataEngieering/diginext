@@ -131,7 +131,13 @@ export interface ItemUnit {
   auditDate: string | null
   remarks: string | null
   status: UnitStatus
+  // The "cover" photo — the first of `photoRefs`. Kept as its own field because
+  // Excel export, the handover sheet, and the table/dashboard thumbnails only
+  // need the one representative image.
   photoEvidenceRef: string | null
+  // The unit's full photo gallery, cover first. Empty when the unit has no
+  // photos. `photoEvidenceRef === photoRefs[0] ?? null` always holds.
+  photoRefs: string[]
   // The project a unit was deployed to when it was retired/damaged. Null unless
   // status is 'Retired-Damaged' (and may be null for older write-offs that
   // predate the column). Lets the loss stay traceable to a site.
@@ -146,6 +152,12 @@ export interface ItemUnitInput {
   remarks: string | null
   status: UnitStatus
   photoEvidenceRef: string | null
+  // The full gallery to store, cover first. When provided, the repository
+  // replaces the unit's gallery with exactly these refs and sets the cover to
+  // the first one. When omitted (undefined), the gallery is left untouched and
+  // only `photoEvidenceRef` drives the cover — this keeps non-UI callers
+  // (import reconcile, handover edits) working without change.
+  photoRefs?: string[]
 }
 
 // Moves a set of units to a single destination (a project, or null = back to

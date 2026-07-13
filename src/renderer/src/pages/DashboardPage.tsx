@@ -10,7 +10,7 @@ import {
   Trash2
 } from 'lucide-react'
 import type { DashboardRollup, DashboardRow, Item, ItemInput, ItemUnitWithDetails } from '@shared/ipc'
-import { PhotoThumbnail } from '@/components/PhotoThumbnail'
+import { PhotoGalleryThumbnail } from '@/components/PhotoGalleryThumbnail'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -451,8 +451,14 @@ export function DashboardPage({
                                   </td>
                                   <td className="px-2.5 py-1.5 text-[#6E6E73]">{unit.status}</td>
                                   <td className="px-2.5 py-1.5">
-                                    <PhotoThumbnail
-                                      reference={unit.photoEvidenceRef}
+                                    <PhotoGalleryThumbnail
+                                      references={
+                                        unit.photoRefs.length > 0
+                                          ? unit.photoRefs
+                                          : unit.photoEvidenceRef
+                                            ? [unit.photoEvidenceRef]
+                                            : []
+                                      }
                                       label={unit.serialId ?? `${row.name} (unit #${unit.id})`}
                                     />
                                   </td>
